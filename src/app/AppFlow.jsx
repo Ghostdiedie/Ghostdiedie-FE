@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom'
+import { setRoomCharacter } from '../api/client'
 import { GameScene } from '../game/GameScene'
+import { CHARACTER_KEY_TO_ID } from '../game/constants/game'
 import LandingPage from '../room/LandingPage'
 import LobbyPage from '../room/LobbyPage'
 import CreateRoom from '../room/CreateRoom'
@@ -35,7 +37,13 @@ export default function AppFlow() {
     navigate('/select')
   }
 
-  function handleCharacterConfirmed(characterKey) {
+  async function handleCharacterConfirmed(characterKey) {
+    const characterId = CHARACTER_KEY_TO_ID[characterKey]
+    if (!roomCode || !userId || !characterId) {
+      throw new Error('Room or character selection is missing')
+    }
+    console.log('[AppFlow] confirming character', { roomCode, userId, characterKey, characterId })
+    await setRoomCharacter(roomCode, userId, characterId)
     setSelectedCharacter(characterKey)
     navigate('/game')
   }

@@ -1,7 +1,20 @@
 import { useEffect, useState } from 'react'
 import { MAX_HP } from '../constants/combat'
 
-export function HUD({ playerHp, opponentHp, playerSkill, opponentSkill, playerFaceUrl, opponentFaceUrl, webcamVideoRef, remoteVideoRef, cvMode }) {
+export function HUD({
+  playerHp,
+  opponentHp,
+  playerSkill,
+  opponentSkill,
+  playerFaceUrl,
+  opponentFaceUrl,
+  localCvCanvasAttachRef,
+  remoteVideoRef,
+  remoteVideoAttachRef,
+  cvMode,
+  cvStatus,
+  cvLastDetected,
+}) {
   const [state, setState] = useState({
     playerHp: MAX_HP,
     opponentHp: MAX_HP,
@@ -40,10 +53,10 @@ export function HUD({ playerHp, opponentHp, playerSkill, opponentSkill, playerFa
 
       {/* ── Player cam + panel (bottom-left, flush) ── */}
       <div className="absolute bottom-[52px] left-4 flex flex-col">
-        {/* Player webcam */}
+        {/* Player CV */}
         <div className="w-full aspect-video bg-black/45 border border-white/10 border-b-0 overflow-hidden flex items-center justify-center text-white/15">
-          {webcamVideoRef ? (
-            <video ref={webcamVideoRef} autoPlay muted playsInline className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
+          {localCvCanvasAttachRef ? (
+            <canvas ref={localCvCanvasAttachRef} className="w-full h-full object-cover" />
           ) : (
             <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <rect x="2" y="7" width="15" height="10" rx="2" stroke="currentColor" strokeWidth="1.4" />
@@ -70,7 +83,7 @@ export function HUD({ playerHp, opponentHp, playerSkill, opponentSkill, playerFa
         {/* Opponent webcam */}
         <div className="w-full aspect-video bg-black/45 border border-white/10 border-b-0 overflow-hidden flex items-center justify-center text-white/15">
           {remoteVideoRef ? (
-            <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
+            <video ref={remoteVideoAttachRef} autoPlay playsInline className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
           ) : (
             <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <rect x="2" y="7" width="15" height="10" rx="2" stroke="currentColor" strokeWidth="1.4" />
@@ -97,6 +110,8 @@ export function HUD({ playerHp, opponentHp, playerSkill, opponentSkill, playerFa
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
             <Hint>CV Mode — punch to attack</Hint>
+            <Sep />
+            <Hint>{formatCvStatus(cvStatus, cvLastDetected)}</Hint>
             <Sep />
             <Key k="Tab" wide /><Hint>switch</Hint>
           </div>
@@ -202,4 +217,14 @@ function Hint({ children }) {
 
 function Sep() {
   return <span className="w-px h-4 bg-white/10 mx-0.5" />
+}
+
+function formatCvStatus(status, lastDetected) {
+  if (status === 'connecting') return 'CV bridge connecting'
+  if (status === 'offline') return 'CV bridge offline'
+  if (status === 'loading') return 'CV loading'
+  if (status === 'error') return 'CV error'
+  if (status === 'ready' && lastDetected?.action) return `last ${lastDetected.action}`
+  if (status === 'ready') return 'CV ready'
+  return 'CV idle'
 }

@@ -91,12 +91,20 @@ export function useMultiplayer(ws, playerMovement) {
 
       switch (msg.type) {
         case 'game_start':
-          // Extract opponent character from game_start
+          console.log('[Multiplayer] game_start', msg)
           if (msg.opponent?.character_id) {
             opponentCharacterKey.current = CHARACTER_ID_TO_KEY[msg.opponent.character_id] || 'red'
           }
           if (msg.me?.hp) playerHp.current = msg.me.hp
           if (msg.opponent?.hp) opponentHp.current = msg.opponent.hp
+          break
+
+        case 'character_select':
+          // Opponent sent their selected character key
+          if (msg.characterKey) {
+            opponentCharacterKey.current = msg.characterKey
+            console.log('[Multiplayer] opponent character updated', msg.characterKey)
+          }
           break
 
         case 'position_sync':
@@ -207,6 +215,14 @@ export function useMultiplayer(ws, playerMovement) {
     [playerAttack],
   )
 
+  // Send selected character to opponent via relay
+  const sendCharacterSelect = useCallback((characterKey) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log('[Multiplayer] send character_select', characterKey)
+      ws.send(JSON.stringify({ type: 'character_select', characterKey }))
+    }
+  }, [ws])
+
   return {
     // Opponent (replaces useOpponentAI)
     opponent: {
@@ -230,5 +246,6 @@ export function useMultiplayer(ws, playerMovement) {
     // Actions
     playerPunch,
     playerKick,
+    sendCharacterSelect,
   }
 }

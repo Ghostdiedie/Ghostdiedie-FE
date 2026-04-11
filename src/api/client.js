@@ -56,6 +56,16 @@ export async function confirmRoom(code, userId) {
   // → { confirmed, both_confirmed }
 }
 
+export async function setRoomCharacter(code, userId, characterId) {
+  const params = new URLSearchParams({
+    code,
+    user_id: userId,
+    character_id: characterId,
+  })
+  return get(`/api/room/character?${params}`)
+  // → { updated, character_id }
+}
+
 export async function getRoomStatus(code) {
   const params = new URLSearchParams({ code })
   return get(`/api/room/status?${params}`)

@@ -21,7 +21,7 @@ function formatTime(sec) {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFaceId, onFaceUploaded, onOpponentFaceUrl, onGameStart, onBack }) {
+export default function CreateRoom({ userId, playerFaceUrl, onFaceUploaded, onOpponentFaceUrl, onGameStart, onBack }) {
   const [roomCode, setRoomCode] = useState(null)
   const [phase, setPhase] = useState('creating')
   const [guest, setGuest] = useState(null)
@@ -29,6 +29,7 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
   const [errorMsg, setErrorMsg] = useState('')
   const pollRef = useRef(null)
   const phaseRef = useRef(phase)
+  const countdownBlocked = phase === 'connecting' || phase === 'error' || phase === 'expired'
 
   // Keep phaseRef in sync so polling callback reads latest phase
   useEffect(() => { phaseRef.current = phase }, [phase])
@@ -56,7 +57,7 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
   // 2. Local countdown timer (ticks every second)
   useEffect(() => {
     if (remaining == null || remaining <= 0) return
-    if (phase === 'connecting' || phase === 'error' || phase === 'expired') return
+    if (countdownBlocked) return
 
     const t = setInterval(() => {
       setRemaining(prev => {
@@ -71,7 +72,7 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
     }, 1000)
 
     return () => clearInterval(t)
-  }, [remaining != null, phase])
+  }, [countdownBlocked, remaining])
 
   // 3. Poll room/status
   useEffect(() => {
@@ -108,7 +109,7 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
     }, 2000)
 
     return () => { alive = false; clearInterval(pollRef.current) }
-  }, [roomCode, phase])
+  }, [onGameStart, onOpponentFaceUrl, roomCode, phase])
 
   async function handleConfirm() {
     setPhase('confirming')

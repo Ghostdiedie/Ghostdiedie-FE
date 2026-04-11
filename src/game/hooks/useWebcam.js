@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
  * Hook to capture the user's webcam feed.
@@ -7,6 +7,15 @@ import { useEffect, useRef } from 'react'
 export function useWebcam() {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
+  const [stream, setStream] = useState(null)
+
+  const attachVideoRef = useCallback((node) => {
+    videoRef.current = node
+    if (node && streamRef.current && node.srcObject !== streamRef.current) {
+      node.srcObject = streamRef.current
+      node.play?.().catch(() => {})
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -22,8 +31,10 @@ export function useWebcam() {
           return
         }
         streamRef.current = stream
-        if (videoRef.current) {
+        setStream(stream)
+        if (videoRef.current && videoRef.current.srcObject !== stream) {
           videoRef.current.srcObject = stream
+          videoRef.current.play?.().catch(() => {})
         }
       } catch (err) {
         console.warn('Webcam not available:', err.message)
@@ -38,8 +49,9 @@ export function useWebcam() {
         streamRef.current.getTracks().forEach(t => t.stop())
         streamRef.current = null
       }
+      setStream(null)
     }
   }, [])
 
-  return { videoRef, streamRef }
+  return { videoRef, attachVideoRef, streamRef, stream }
 }

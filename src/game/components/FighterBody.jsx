@@ -54,6 +54,19 @@ function pickAnimation(fighterState, isMoving, isGrounded) {
   return 'idle'
 }
 
+function findHeadBone(root) {
+  let fallback = null
+  root.traverse((node) => {
+    if (!node.isBone) return
+    const name = node.name.toLowerCase()
+    if (name === 'mixamorig:head') fallback = node
+    if (!fallback && (name === 'head' || name.endsWith(':head') || name.includes('head'))) {
+      fallback = node
+    }
+  })
+  return fallback
+}
+
 /**
  * Shared animated fighter body used by both Player and Opponent.
  *
@@ -119,17 +132,20 @@ export function FighterBody({
 
   // Attach / update face plane on the Head bone
   useEffect(() => {
-    let headBone = null
-    clonedScene.traverse((node) => {
-      if (node.isBone && node.name === 'mixamorig:Head') headBone = node
-    })
-    if (!headBone) return
+    const headBone = findHeadBone(clonedScene)
+    if (!headBone) {
+      console.warn('[FighterBody] head bone not found', { modelPath, hasFace: Boolean(faceImageUrl) })
+      return
+    }
 
     // Remove any existing face plane
     const existing = headBone.getObjectByName('__facePlane__')
     if (existing) headBone.remove(existing)
 
-    if (!faceImageUrl) return
+    if (!faceImageUrl) {
+      console.warn('[FighterBody] no face image for model', { modelPath, bone: headBone.name })
+      return
+    }
 
     const texture = new THREE.TextureLoader().load(faceImageUrl)
     texture.colorSpace = THREE.SRGBColorSpace
@@ -148,14 +164,16 @@ export function FighterBody({
     plane.position.copy(FACE_OFFSET)
     // The head bone faces +Z in local space; no extra rotation needed
     headBone.add(plane)
+    console.log('[FighterBody] attached face plane', { modelPath, bone: headBone.name, faceLength: faceImageUrl.length })
 
     return () => {
       headBone.remove(plane)
       geo.dispose()
       mat.dispose()
       texture.dispose()
+      console.log('[FighterBody] detached face plane', { modelPath, bone: headBone.name })
     }
-  }, [clonedScene, faceImageUrl])
+  }, [clonedScene, faceImageUrl, modelPath])
 
   useEffect(() => {
     const missing = Object.entries(clipNames)
@@ -265,6 +283,8 @@ export function FighterBody({
 
     if (ONESHOT_CLIPS.has(logicalClip)) {
       nextAction.setLoop(THREE.LoopOnce, 1)
+      // three.js AnimationAction config is intentionally mutable.
+      // eslint-disable-next-line react-hooks/immutability
       nextAction.clampWhenFinished = true
     } else {
       nextAction.setLoop(THREE.LoopRepeat, Infinity)

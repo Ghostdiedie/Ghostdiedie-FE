@@ -2,15 +2,14 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { useProgress } from '@react-three/drei'
 import { createWebSocket } from '../api/client'
-import { useWebcam } from './hooks/useWebcam'
 import { useWebRTC } from './hooks/useWebRTC'
-import { usePoseDetection } from './hooks/usePoseDetection'
+import { useLocalCVBridge } from './hooks/useLocalCVBridge'
 import { Arena } from './components/Arena'
 import { PlayerCharacter } from './components/PlayerCharacter'
 import { OpponentCharacter } from './components/OpponentCharacter'
 import { FollowCamera } from './components/FollowCamera'
 import { HUD } from './components/HUD'
-import { useKeyboard } from './hooks/useKeyboard'
+import { useCVControls } from './hooks/useCVControls'
 import { usePlayerMovement } from './hooks/usePlayerMovement'
 import { useMultiplayer } from './hooks/useMultiplayer'
 import { ARENA_RADIUS, ARENA_BOUNDARY_MARGIN, FIGHTER_MIN_DISTANCE, SEPARATION_MAX_PUSH } from './constants/game'
@@ -27,41 +26,49 @@ function clampToArena(pos) {
 
 function CharacterSeparation({ playerPosRef, opponentPosRef }) {
   useFrame(() => {
-    const player   = playerPosRef.current
+    const player = playerPosRef.current
     const opponent = opponentPosRef.current
-
     let dx = opponent[0] - player[0]
     let dz = opponent[2] - player[2]
     let dist = Math.sqrt(dx * dx + dz * dz)
-
     if (dist === 0) { dx = 0; dz = 1; dist = 1 }
     if (dist >= FIGHTER_MIN_DISTANCE) return
-
     const overlap = FIGHTER_MIN_DISTANCE - dist
     const push = Math.min(overlap * 0.5, SEPARATION_MAX_PUSH)
     const nx = dx / dist
     const nz = dz / dist
-
-    // Only push the player (opponent position is from server)
     player[0] -= nx * push * 2
     player[2] -= nz * push * 2
-
     clampToArena(player)
   })
-
   return null
 }
 
 const COUNTDOWN_SEQUENCE = [5, 4, 3, 2, 1, 'FIGHT!']
 
 function LoadingTracker({ onLoaded }) {
-  const { active } = useProgress()
+  const { active, loaded, total } = useProgress()
   const calledRef = useRef(false)
+  const sawAssetsRef = useRef(false)
 
-  if (!active && !calledRef.current) {
-    calledRef.current = true
-    queueMicrotask(onLoaded)
-  }
+  useEffect(() => {
+    if (active || total > 0) {
+      sawAssetsRef.current = true
+    }
+  }, [active, total])
+
+  useEffect(() => {
+    if (calledRef.current || active) return
+    if (sawAssetsRef.current && total > 0 && loaded < total) return
+
+    const timer = setTimeout(() => {
+      if (calledRef.current) return
+      calledRef.current = true
+      onLoaded()
+    }, 150)
+
+    return () => clearTimeout(timer)
+  }, [active, loaded, onLoaded, total])
 
   return null
 }
@@ -71,50 +78,27 @@ function CountdownOverlay({ onComplete }) {
   const [visible, setVisible] = useState(true)
 
   useEffect(() => {
-    if (step >= COUNTDOWN_SEQUENCE.length) {
-      onComplete()
-      return
-    }
-
+    if (step >= COUNTDOWN_SEQUENCE.length) { onComplete(); return }
     const isFight = COUNTDOWN_SEQUENCE[step] === 'FIGHT!'
-    const showFor  = isFight ? 900 : 650
+    const showFor = isFight ? 900 : 650
     const totalFor = isFight ? 1400 : 1000
-
     const t1 = setTimeout(() => setVisible(false), showFor)
-    const t2 = setTimeout(() => {
-      setStep(s => s + 1)
-      setVisible(true)
-    }, totalFor)
-
+    const t2 = setTimeout(() => { setStep(s => s + 1); setVisible(true) }, totalFor)
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [onComplete, step])
 
   if (step >= COUNTDOWN_SEQUENCE.length) return null
-
   const current = COUNTDOWN_SEQUENCE[step]
   const isFight = current === 'FIGHT!'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none select-none">
-      <div
-        className="absolute inset-0 bg-black/60 transition-opacity duration-500"
-        style={{ opacity: Math.max(0, 1 - step * 0.15) }}
-      />
-      <div
-        className={[
-          'relative z-10 transition-[opacity,transform] duration-220 ease-out',
-          visible ? 'opacity-100 scale-100' : 'opacity-0 scale-[1.3]',
-        ].join(' ')}
-      >
-        {isFight ? (
-          <span className="font-black tracking-[0.05em] text-red-500 text-[clamp(4rem,12vw,7rem)] drop-shadow-[0_0_40px_rgba(239,68,68,0.5)]">
-            FIGHT!
-          </span>
-        ) : (
-          <span className="font-black text-white text-[clamp(10rem,28vw,18rem)] leading-none drop-shadow-[0_0_60px_rgba(255,255,255,0.3)]">
-            {current}
-          </span>
-        )}
+      <div className="absolute inset-0 bg-black/60 transition-opacity duration-500" style={{ opacity: Math.max(0, 1 - step * 0.15) }} />
+      <div className={['relative z-10 transition-[opacity,transform] duration-220 ease-out', visible ? 'opacity-100 scale-100' : 'opacity-0 scale-[1.3]'].join(' ')}>
+        {isFight
+          ? <span className="font-black tracking-[0.05em] text-red-500 text-[clamp(4rem,12vw,7rem)] drop-shadow-[0_0_40px_rgba(239,68,68,0.5)]">FIGHT!</span>
+          : <span className="font-black text-white text-[clamp(10rem,28vw,18rem)] leading-none drop-shadow-[0_0_60px_rgba(255,255,255,0.3)]">{current}</span>
+        }
       </div>
     </div>
   )
@@ -146,60 +130,58 @@ export function GameScene({ roomCode, playerFaceUrl, opponentFaceUrl, playerChar
   const [playerIndex, setPlayerIndex] = useState(0)
   const [assetsLoaded, setAssetsLoaded] = useState(false)
   const [countdownDone, setCountdownDone] = useState(false)
+  const [hudBindings, setHudBindings] = useState(null)
+  const [resolvedOpponentFaceUrl, setResolvedOpponentFaceUrl] = useState(() => opponentFaceUrl ?? null)
 
-  // Multiplayer refs for HUD (need stable refs before Scene mounts)
-  const mpRef = useRef(null)
+  const cvControls = useCVControls()
+  const cvBridge = useLocalCVBridge(cvControls.handleAction)
+  const cvMode = true
 
-  // CV mode toggle (Tab key)
-  const [cvMode, setCvMode] = useState(false)
-  useEffect(() => {
-    function onKey(e) { if (e.key === 'Tab') { e.preventDefault(); setCvMode(v => !v) } }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
-
-  // CV event queue (bridge: usePoseDetection outside Canvas → useFrame inside Canvas)
-  const cvEventsRef = useRef({ punchLeft: false, punchRight: false })
-  const cvCallbacks = useRef({
-    onLeftPunch: () => { cvEventsRef.current.punchLeft = true },
-    onRightPunch: () => { cvEventsRef.current.punchRight = true },
-  })
-
-  // Webcam + WebRTC
-  const { videoRef: webcamVideoRef, streamRef: webcamStreamRef } = useWebcam()
-  const { remoteVideoRef } = useWebRTC(ws, webcamStreamRef.current, playerIndex === 0, gameStarted)
-
-  // CV Pose detection
-  usePoseDetection(webcamVideoRef, cvMode && countdownDone, cvCallbacks.current)
+  const { remoteVideoRef, attachRemoteVideoRef } = useWebRTC(ws, cvBridge.stream, playerIndex === 0, gameStarted)
 
   const handleLoaded = useCallback(() => setAssetsLoaded(true), [])
   const handleCountdownComplete = useCallback(() => setCountdownDone(true), [])
 
-  // Connect WebSocket on mount
+  // Connect WebSocket on mount — use addEventListener so useMultiplayer can also listen
   useEffect(() => {
     if (!roomCode) return
 
     const socket = createWebSocket(roomCode)
 
-    socket.onopen = () => {
+    socket.addEventListener('open', () => {
+      console.log('[GameScene] ws open', { roomCode })
       setWs(socket)
-    }
+    })
 
-    socket.onmessage = (e) => {
+    // Listen for game_start to update local state
+    function onMsg(e) {
       let msg
       try { msg = JSON.parse(e.data) } catch { return }
       if (msg.type === 'game_start') {
+        console.log('[GameScene] game_start received', {
+          roomCode,
+          playerIndex: msg.player_index,
+          meCharacterId: msg.me?.character_id,
+          opponentCharacterId: msg.opponent?.character_id,
+          opponentHasFace: Boolean(msg.opponent?.profile_image_url),
+        })
         setPlayerIndex(msg.player_index ?? 0)
+        if (msg.opponent?.profile_image_url) {
+          setResolvedOpponentFaceUrl(msg.opponent.profile_image_url)
+        }
         setGameStarted(true)
       }
     }
+    socket.addEventListener('message', onMsg)
 
-    socket.onerror = () => {
-      console.error('WebSocket connection failed')
-    }
+    socket.addEventListener('error', () => {
+      console.error('[GameScene] WebSocket connection failed', { roomCode })
+    })
 
     return () => {
+      socket.removeEventListener('message', onMsg)
       socket.close()
+      console.log('[GameScene] ws closed', { roomCode })
     }
   }, [roomCode])
 
@@ -213,7 +195,16 @@ export function GameScene({ roomCode, playerFaceUrl, opponentFaceUrl, playerChar
       <Canvas shadows dpr={[1, 1.5]} gl={{ antialias: true, alpha: false }} performance={{ min: 0.5 }}>
         <Suspense fallback={null}>
           <LoadingTracker onLoaded={handleLoaded} />
-          {ws && <SceneWithMultiplayer ws={ws} playerFaceUrl={playerFaceUrl} opponentFaceUrl={opponentFaceUrl} playerCharacterKey={playerCharacterKey} mpRef={mpRef} cvMode={cvMode} cvEventsRef={cvEventsRef} />}
+          {ws && (
+            <SceneWithMultiplayer
+              ws={ws}
+              playerFaceUrl={playerFaceUrl}
+              opponentFaceUrl={resolvedOpponentFaceUrl}
+              playerCharacterKey={playerCharacterKey}
+              onHudBindings={setHudBindings}
+              controls={cvControls}
+            />
+          )}
         </Suspense>
       </Canvas>
 
@@ -221,63 +212,70 @@ export function GameScene({ roomCode, playerFaceUrl, opponentFaceUrl, playerChar
       {showWaiting && <WaitingForOpponentOverlay />}
       {showCountdown && <CountdownOverlay onComplete={handleCountdownComplete} />}
 
-      {gameReady && mpRef.current && (
+      {gameReady && hudBindings && (
         <HUD
-          playerHp={mpRef.current.playerHp}
-          opponentHp={mpRef.current.opponentHp}
-          playerSkill={mpRef.current.playerGauge}
-          opponentSkill={mpRef.current.opponentGauge}
+          playerHp={hudBindings.playerHp}
+          opponentHp={hudBindings.opponentHp}
+          playerSkill={hudBindings.playerGauge}
+          opponentSkill={hudBindings.opponentGauge}
           playerFaceUrl={playerFaceUrl}
-          opponentFaceUrl={opponentFaceUrl}
-          webcamVideoRef={webcamVideoRef}
+          opponentFaceUrl={resolvedOpponentFaceUrl}
+          localCvCanvasAttachRef={cvBridge.attachDisplayCanvasRef}
           remoteVideoRef={remoteVideoRef}
+          remoteVideoAttachRef={attachRemoteVideoRef}
           cvMode={cvMode}
+          cvStatus={cvBridge.status}
+          cvLastDetected={cvBridge.lastAction}
         />
       )}
     </div>
   )
 }
 
-/**
- * Wrapper that creates multiplayer hook inside Canvas context and exposes refs.
- */
-function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharacterKey, mpRef, cvMode, cvEventsRef }) {
-  const { keys, consumeCombatEvents } = useKeyboard()
+function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharacterKey, onHudBindings, controls }) {
+  // Opponent position ref shared between usePlayerMovement and useMultiplayer
+  const opponentPosRef = useRef([0, 0, -5])
 
-  // Placeholder opponent position for initial movement hook
-  const tempOpponentPos = useRef([0, 0, -5])
-
-  // We need to create movement first, then multiplayer, then patch opponent pos
-  const movement = usePlayerMovement(keys, tempOpponentPos)
+  const movement = usePlayerMovement(controls.keys, opponentPosRef)
   const mp = useMultiplayer(ws, movement)
 
-  // Patch: use real opponent position for player facing
-  tempOpponentPos.current = mp.opponent.position.current
-
-  // Expose mp refs to parent for HUD
+  // Send our character selection to opponent on first connect
+  const sentCharRef = useRef(false)
   useEffect(() => {
-    mpRef.current = mp
-  }, [mp, mpRef])
-
-  // Process combat inputs each frame (keyboard or CV)
-  useFrame(() => {
-    if (cvMode) {
-      // CV mode: read events from pose detection
-      const cv = cvEventsRef.current
-      if (cv.punchLeft) { mp.playerPunch('left'); cv.punchLeft = false }
-      if (cv.punchRight) { mp.playerPunch('right'); cv.punchRight = false }
-    } else {
-      // Keyboard mode
-      const events = consumeCombatEvents()
-      if (events.punchLeft) mp.playerPunch('left')
-      if (events.kick) mp.playerKick()
-      if (events.punchRight) mp.playerPunch('right')
+    if (ws && !sentCharRef.current && playerCharacterKey) {
+      mp.sendCharacterSelect(playerCharacterKey)
+      sentCharRef.current = true
     }
+  }, [ws, playerCharacterKey, mp])
+
+  // Sync: copy multiplayer opponent position into the shared ref every frame
+  useFrame(() => {
+    const src = mp.opponent.position.current
+    const dst = opponentPosRef.current
+    dst[0] = src[0]
+    dst[1] = src[1]
+    dst[2] = src[2]
+  })
+
+  useEffect(() => {
+    onHudBindings({
+      playerHp: mp.playerHp,
+      opponentHp: mp.opponentHp,
+      playerGauge: mp.playerGauge,
+      opponentGauge: mp.opponentGauge,
+    })
+  }, [mp.opponentGauge, mp.opponentHp, mp.playerGauge, mp.playerHp, onHudBindings])
+
+  // Combat inputs
+  useFrame(() => {
+    const events = controls.consumeCombatEvents()
+    if (events.punchLeft) mp.playerPunch('left')
+    if (events.kick) mp.playerKick()
+    if (events.punchRight) mp.playerPunch('right')
   })
 
   return (
     <>
-      {/* Optimized lighting: ambient + 1 shadow directional + 2 fill points */}
       <ambientLight intensity={0.7} color="#c8b888" />
       <directionalLight
         position={[2, 8, 4]}

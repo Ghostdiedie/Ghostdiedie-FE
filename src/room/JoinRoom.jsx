@@ -15,7 +15,7 @@ function Dots() {
   )
 }
 
-export default function JoinRoom({ userId, playerName, playerFaceUrl, playerFaceId, onFaceUploaded, onOpponentFaceUrl, onJoined, onBack }) {
+export default function JoinRoom({ userId, playerFaceUrl, onFaceUploaded, onOpponentFaceUrl, onJoined, onBack }) {
   const [code, setCode] = useState('')
   // idle | joining | joined | confirming | waiting_confirm | connecting | error
   const [phase, setPhase] = useState('idle')
