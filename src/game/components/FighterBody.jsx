@@ -6,12 +6,6 @@ import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { CHARACTER_MODEL_PATHS } from '../constants/game'
 import { HIT_KNOCKBACK, HIT_ROCK_ANGLE } from '../constants/combat'
 
-// Head bone local space uses Blender cm units (armature scale = 0.01).
-// Combined effective world scale: armature(0.01) × PLAYER_SCALE(1.5) = 0.015
-//   → 1 cm here = 0.015 world units
-// FacePlate position from GLB: [1.57, 14.08, 18.29] cm (confirmed by parsing the binary)
-const FACE_PLANE_RADIUS = 13     // 13 cm → ~0.20 world-unit radius
-const FACE_OFFSET = new THREE.Vector3(0, 14, 18.3)  // cm in head bone local space
 
 const CLIP_ALIASES = {
   idle: ['idle'],
@@ -65,18 +59,6 @@ function pickAnimation(fighterState, isMoving, isGrounded, gameResult) {
   return 'idle'
 }
 
-function findHeadBone(root) {
-  let fallback = null
-  root.traverse((node) => {
-    if (!node.isBone) return
-    const name = node.name.toLowerCase()
-    if (name === 'mixamorig:head') fallback = node
-    if (!fallback && (name === 'head' || name.endsWith(':head') || name.includes('head'))) {
-      fallback = node
-    }
-  })
-  return fallback
-}
 
 /**
  * Shared animated fighter body used by both Player and Opponent.
@@ -145,59 +127,44 @@ export function FighterBody({
       if (node.isMesh) {
         node.castShadow = true
         node.receiveShadow = false
-        // Hide any built-in face plate mesh from the GLB — the runtime plane handles face rendering
-        const lower = node.name.toLowerCase().replace(/[\s_-]/g, '')
-        if (lower === 'faceplate' || lower === 'facemesh' || lower === 'faceplane') {
-          node.visible = false
-        }
       }
     })
   }, [clonedScene])
 
-  // Attach / update face plane on the Head bone
+  // Apply face texture directly onto the GLB's FacePlate mesh
   useEffect(() => {
-    const headBone = findHeadBone(clonedScene)
-    if (!headBone) {
-      console.warn('[FighterBody] head bone not found', { modelPath, hasFace: Boolean(faceImageUrl) })
+    const facePlate = clonedScene.getObjectByName('FacePlate')
+    if (!facePlate) {
+      console.warn('[FighterBody] FacePlate mesh not found in model', { modelPath })
       return
     }
 
-    // Remove any existing face plane
-    const existing = headBone.getObjectByName('__facePlane__')
-    if (existing) headBone.remove(existing)
-
     if (!faceImageUrl) {
-      console.warn('[FighterBody] no face image for model', { modelPath, bone: headBone.name })
+      facePlate.visible = false
       return
     }
 
     const texture = new THREE.TextureLoader().load(faceImageUrl)
     texture.colorSpace = THREE.SRGBColorSpace
 
-    const geo = new THREE.CircleGeometry(FACE_PLANE_RADIUS, 32)
     const mat = new THREE.MeshStandardMaterial({
       map: texture,
       transparent: true,
       depthWrite: false,
-      side: THREE.DoubleSide,  // visible from both sides regardless of bone axis orientation
+      side: THREE.DoubleSide,
       roughness: 0.7,
       metalness: 0,
     })
-    const plane = new THREE.Mesh(geo, mat)
-    plane.name = '__facePlane__'
-    plane.position.copy(FACE_OFFSET)
-    // Head bone local +Y → world +Z (character forward) after armature +90°X rotation.
-    // CircleGeometry normal defaults to +Z (bone local); rotate -90°X so normal → +Y (bone local) → world forward.
-    plane.rotation.x = -Math.PI / 2
-    headBone.add(plane)
-    console.log('[FighterBody] attached face plane', { modelPath, bone: headBone.name, faceLength: faceImageUrl.length })
+
+    const prevMaterial = facePlate.material
+    facePlate.material = mat
+    facePlate.visible = true
+    console.log('[FighterBody] face texture applied to FacePlate', { modelPath, faceLength: faceImageUrl.length })
 
     return () => {
-      headBone.remove(plane)
-      geo.dispose()
+      facePlate.material = prevMaterial
       mat.dispose()
       texture.dispose()
-      console.log('[FighterBody] detached face plane', { modelPath, bone: headBone.name })
     }
   }, [clonedScene, faceImageUrl, modelPath])
 
