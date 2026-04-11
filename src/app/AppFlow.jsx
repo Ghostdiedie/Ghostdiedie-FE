@@ -43,8 +43,12 @@ export default function AppFlow() {
       throw new Error('Room or character selection is missing')
     }
     console.log('[AppFlow] confirming character', { roomCode, userId, characterKey, characterId })
-    await setRoomCharacter(roomCode, userId, characterId)
+    const result = await setRoomCharacter(roomCode, userId, characterId)
     setSelectedCharacter(characterKey)
+    return result
+  }
+
+  function handleBothCharactersSelected() {
     navigate('/game')
   }
 
@@ -114,8 +118,10 @@ export default function AppFlow() {
         element={
           <Guard ok={roomCode} fallback="/start">
             <CharacterSelect
+              roomCode={roomCode}
               playerFaceUrl={playerFaceUrl}
               onConfirm={handleCharacterConfirmed}
+              onBothSelected={handleBothCharactersSelected}
               onBack={() => navigate('/start')}
             />
           </Guard>

@@ -44,6 +44,9 @@ function CharacterSeparation({ playerPosRef, opponentPosRef }) {
 }
 
 const COUNTDOWN_SEQUENCE = [5, 4, 3, 2, 1, 'FIGHT!']
+const COUNTDOWN_STEP_MS = 1000
+const FIGHT_STEP_MS = 1400
+const COUNTDOWN_TOTAL_MS = (COUNTDOWN_SEQUENCE.length - 1) * COUNTDOWN_STEP_MS + FIGHT_STEP_MS
 
 function SceneReadySignal({ onReady }) {
   const calledRef = useRef(false)
@@ -57,23 +60,54 @@ function SceneReadySignal({ onReady }) {
   return null
 }
 
-function CountdownOverlay({ onComplete }) {
-  const [step, setStep] = useState(0)
-  const [visible, setVisible] = useState(true)
+function CountdownOverlay({ countdownStartMs, serverClockOffsetMs, onComplete }) {
+  const [nowMs, setNowMs] = useState(() => Date.now())
 
   useEffect(() => {
-    if (step >= COUNTDOWN_SEQUENCE.length) { onComplete(); return }
-    const isFight = COUNTDOWN_SEQUENCE[step] === 'FIGHT!'
-    const showFor = isFight ? 900 : 650
-    const totalFor = isFight ? 1400 : 1000
-    const t1 = setTimeout(() => setVisible(false), showFor)
-    const t2 = setTimeout(() => { setStep(s => s + 1); setVisible(true) }, totalFor)
-    return () => { clearTimeout(t1); clearTimeout(t2) }
-  }, [onComplete, step])
+    if (!countdownStartMs) return
 
-  if (step >= COUNTDOWN_SEQUENCE.length) return null
+    let rafId = 0
+    let timeoutId = 0
+    const completeAtMs = countdownStartMs + COUNTDOWN_TOTAL_MS
+    const syncedNow = () => Date.now() + serverClockOffsetMs
+
+    const tick = () => {
+      const nextNow = syncedNow()
+      setNowMs(nextNow)
+      if (nextNow >= completeAtMs) {
+        onComplete()
+        return
+      }
+      rafId = window.requestAnimationFrame(tick)
+    }
+
+    const delayMs = Math.max(0, countdownStartMs - syncedNow())
+    timeoutId = window.setTimeout(() => {
+      tick()
+    }, Math.min(delayMs, 250))
+
+    return () => {
+      window.clearTimeout(timeoutId)
+      window.cancelAnimationFrame(rafId)
+    }
+  }, [countdownStartMs, onComplete, serverClockOffsetMs])
+
+  if (!countdownStartMs) return null
+
+  const elapsedMs = Math.max(0, nowMs - countdownStartMs)
+  const completeAtMs = countdownStartMs + COUNTDOWN_TOTAL_MS
+  if (nowMs >= completeAtMs) return null
+
+  const step = elapsedMs >= (COUNTDOWN_SEQUENCE.length - 1) * COUNTDOWN_STEP_MS
+    ? COUNTDOWN_SEQUENCE.length - 1
+    : Math.floor(elapsedMs / COUNTDOWN_STEP_MS)
   const current = COUNTDOWN_SEQUENCE[step]
   const isFight = current === 'FIGHT!'
+  const stepElapsedMs = isFight
+    ? elapsedMs - (COUNTDOWN_SEQUENCE.length - 1) * COUNTDOWN_STEP_MS
+    : elapsedMs - step * COUNTDOWN_STEP_MS
+  const showFor = isFight ? 900 : 650
+  const visible = stepElapsedMs < showFor
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none select-none">
@@ -114,6 +148,8 @@ export function GameScene({ roomCode, playerFaceUrl, opponentFaceUrl, playerChar
   const [playerIndex, setPlayerIndex] = useState(0)
   const [assetsLoaded, setAssetsLoaded] = useState(false)
   const [countdownDone, setCountdownDone] = useState(false)
+  const [countdownStartMs, setCountdownStartMs] = useState(null)
+  const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0)
   const [hudBindings, setHudBindings] = useState(null)
   const [resolvedOpponentFaceUrl, setResolvedOpponentFaceUrl] = useState(() => opponentFaceUrl ?? null)
 
@@ -142,14 +178,21 @@ export function GameScene({ roomCode, playerFaceUrl, opponentFaceUrl, playerChar
       let msg
       try { msg = JSON.parse(e.data) } catch { return }
       if (msg.type === 'game_start') {
+        const clientNowMs = Date.now()
+        const nextServerClockOffsetMs = (msg.server_now_ms ?? clientNowMs) - clientNowMs
         console.log('[GameScene] game_start received', {
           roomCode,
           playerIndex: msg.player_index,
+          serverNowMs: msg.server_now_ms,
+          countdownStartMs: msg.countdown_start_ms,
           meCharacterId: msg.me?.character_id,
           opponentCharacterId: msg.opponent?.character_id,
           opponentHasFace: Boolean(msg.opponent?.profile_image_url),
         })
         setPlayerIndex(msg.player_index ?? 0)
+        setServerClockOffsetMs(nextServerClockOffsetMs)
+        setCountdownStartMs(msg.countdown_start_ms ?? (clientNowMs + 1500))
+        setCountdownDone(false)
         if (msg.opponent?.profile_image_url) {
           setResolvedOpponentFaceUrl(msg.opponent.profile_image_url)
         }
@@ -194,7 +237,13 @@ export function GameScene({ roomCode, playerFaceUrl, opponentFaceUrl, playerChar
 
       {showLoading && <LoadingOverlay />}
       {showWaiting && <WaitingForOpponentOverlay />}
-      {showCountdown && <CountdownOverlay onComplete={handleCountdownComplete} />}
+      {showCountdown && (
+        <CountdownOverlay
+          countdownStartMs={countdownStartMs}
+          serverClockOffsetMs={serverClockOffsetMs}
+          onComplete={handleCountdownComplete}
+        />
+      )}
 
       {gameReady && hudBindings && (
         <HUD

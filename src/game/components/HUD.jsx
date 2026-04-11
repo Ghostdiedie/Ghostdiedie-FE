@@ -52,7 +52,7 @@ export function HUD({
       </div>
 
       {/* ── Player cam + panel (bottom-left, flush) ── */}
-      <div className="absolute bottom-[52px] left-4 flex flex-col">
+      <div className="absolute bottom-[52px] left-4 flex w-[220px] md:w-[260px] lg:w-[300px] flex-col">
         {/* Player CV */}
         <div className="w-full aspect-video bg-black/45 border border-white/10 border-b-0 overflow-hidden flex items-center justify-center text-white/15">
           {localCvCanvasAttachRef ? (
@@ -79,7 +79,7 @@ export function HUD({
       </div>
 
       {/* ── Enemy cam + panel (bottom-right) ── */}
-      <div className="absolute bottom-[52px] right-4 flex flex-col items-end">
+      <div className="absolute bottom-[52px] right-4 flex w-[220px] md:w-[260px] lg:w-[300px] flex-col items-end">
         {/* Opponent webcam */}
         <div className="w-full aspect-video bg-black/45 border border-white/10 border-b-0 overflow-hidden flex items-center justify-center text-white/15">
           {remoteVideoRef ? (

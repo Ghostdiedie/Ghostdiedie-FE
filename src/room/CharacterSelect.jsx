@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Button from '../components/Button'
+import { getRoomStatus } from '../api/client'
 import backgroundImg from '../assets/background/background.webp'
 
 const CHARACTERS = [
@@ -57,19 +58,45 @@ function FighterCard({ character, selected, faceUrl, onClick }) {
   )
 }
 
-export default function CharacterSelect({ playerFaceUrl, onConfirm, onBack }) {
+export default function CharacterSelect({ roomCode, playerFaceUrl, onConfirm, onBothSelected, onBack }) {
   const [selected, setSelected] = useState('blue')
-  const [submitting, setSubmitting] = useState(false)
+  const [phase, setPhase] = useState('idle')
   const [errorMsg, setErrorMsg] = useState('')
+  const pollRef = useRef(null)
+
+  useEffect(() => () => clearInterval(pollRef.current), [])
+
+  function startPolling() {
+    clearInterval(pollRef.current)
+    pollRef.current = setInterval(async () => {
+      try {
+        const status = await getRoomStatus(roomCode)
+        if (status.both_characters_selected) {
+          clearInterval(pollRef.current)
+          onBothSelected()
+        }
+      } catch (err) {
+        clearInterval(pollRef.current)
+        setPhase('idle')
+        setErrorMsg(err.message || 'Failed to wait for opponent')
+      }
+    }, 1200)
+  }
 
   async function handleConfirm() {
-    if (!selected || submitting) return
-    setSubmitting(true)
+    if (!selected || phase === 'submitting' || phase === 'waiting') return
+    setPhase('submitting')
     setErrorMsg('')
     try {
-      await onConfirm(selected)
+      const result = await onConfirm(selected)
+      if (result?.both_characters_selected) {
+        onBothSelected()
+        return
+      }
+      setPhase('waiting')
+      startPolling()
     } catch (err) {
-      setSubmitting(false)
+      setPhase('idle')
       setErrorMsg(err.message || 'Failed to start game')
     }
   }
@@ -119,12 +146,15 @@ export default function CharacterSelect({ playerFaceUrl, onConfirm, onBack }) {
       {/* Start Game button */}
       <div className="relative z-10 flex flex-col items-center gap-3 pb-8">
         {errorMsg && <p className="text-sm text-red-400">{errorMsg}</p>}
+        {phase === 'waiting' && (
+          <p className="text-sm text-gray-300">Waiting for opponent to press Start Game...</p>
+        )}
         <Button
           onClick={handleConfirm}
-          disabled={!selected || submitting}
+          disabled={!selected || phase === 'submitting' || phase === 'waiting'}
           className="px-12 py-3 text-lg"
         >
-          {submitting ? 'Starting...' : 'Start Game'}
+          {phase === 'submitting' ? 'Starting...' : phase === 'waiting' ? 'Waiting...' : 'Start Game'}
         </Button>
       </div>
     </div>
