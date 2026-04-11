@@ -1,4 +1,5 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { createWebSocket } from '../api/client'
 import { useWebRTC } from './hooks/useWebRTC'
@@ -143,6 +144,7 @@ function WaitingForOpponentOverlay() {
 }
 
 export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl, playerCharacterKey = 'blue' }) {
+  const navigate = useNavigate()
   const [ws, setWs] = useState(null)
   const [gameStarted, setGameStarted] = useState(false)
   const [playerIndex, setPlayerIndex] = useState(0)
@@ -178,6 +180,12 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
     function onMsg(e) {
       let msg
       try { msg = JSON.parse(e.data) } catch { return }
+      if (msg.type === 'afk_timeout') {
+        console.log('[GameScene] afk_timeout — returning to lobby', msg)
+        socket.close()
+        navigate('/')
+        return
+      }
       if (msg.type === 'game_start') {
         const clientNowMs = Date.now()
         const nextServerClockOffsetMs = (msg.server_now_ms ?? clientNowMs) - clientNowMs

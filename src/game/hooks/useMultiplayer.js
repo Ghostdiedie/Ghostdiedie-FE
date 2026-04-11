@@ -167,6 +167,10 @@ export function useMultiplayer(ws, playerMovement) {
         case 'opponent_left':
           gameOver.current = { winner_name: 'You', loser_name: 'Opponent', disconnected: true }
           break
+
+        case 'afk_timeout':
+          gameOver.current = { afk_timeout: true, afk_player_index: msg.afk_player_index }
+          break
       }
     }
 
