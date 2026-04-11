@@ -219,13 +219,26 @@ if [[ ! -d "$FE_DIR/node_modules" ]]; then
   )
 fi
 
+graceful_kill() {
+  local pid="$1"
+  [[ -z "$pid" ]] && return
+  # SIGINT first — gives Python time to call cap.release()
+  kill -INT "$pid" >/dev/null 2>&1 || return
+  for _ in {1..30}; do
+    kill -0 "$pid" >/dev/null 2>&1 || return
+    sleep 0.1
+  done
+  # Force kill if still alive after 3 s
+  kill -9 "$pid" >/dev/null 2>&1 || true
+}
+
 cleanup() {
   if [[ -n "${NPM_PID:-}" ]]; then
     kill "$NPM_PID" >/dev/null 2>&1 || true
     wait "$NPM_PID" 2>/dev/null || true
   fi
   if [[ -n "${CV_PID:-}" ]]; then
-    kill "$CV_PID" >/dev/null 2>&1 || true
+    graceful_kill "$CV_PID"
     wait "$CV_PID" 2>/dev/null || true
   fi
 }

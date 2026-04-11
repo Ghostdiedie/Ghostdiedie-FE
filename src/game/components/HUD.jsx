@@ -6,11 +6,11 @@ export function HUD({
   opponentHp,
   playerSkill,
   opponentSkill,
+  playerName,
+  opponentName,
   playerFaceUrl,
   opponentFaceUrl,
   localCvCanvasAttachRef,
-  remoteVideoRef,
-  remoteVideoAttachRef,
   cvMode,
   cvStatus,
   cvLastDetected,
@@ -51,25 +51,20 @@ export function HUD({
         </div>
       </div>
 
-      {/* ── Player cam + panel (bottom-left, flush) ── */}
+      {/* ── Player cam + panel (bottom-left) ── */}
       <div className="absolute bottom-[52px] left-4 flex w-[220px] md:w-[260px] lg:w-[300px] flex-col">
-        {/* Player CV */}
+        {/* Player CV canvas */}
         <div className="w-full aspect-video bg-black/45 border border-white/10 border-b-0 overflow-hidden flex items-center justify-center text-white/15">
-          {localCvCanvasAttachRef ? (
-            <canvas ref={localCvCanvasAttachRef} className="w-full h-full object-cover" />
-          ) : (
-            <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect x="2" y="7" width="15" height="10" rx="2" stroke="currentColor" strokeWidth="1.4" />
-              <path d="M17 10l5-3v10l-5-3V10z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-            </svg>
-          )}
+          <canvas ref={localCvCanvasAttachRef} className="w-full h-full object-cover" />
         </div>
-        {/* player panel */}
+        {/* Player panel */}
         <div className="flex items-center gap-2.5 bg-black/55 border border-white/10 pl-2.5 pr-4 py-2">
-          <Portrait label="1P" faceUrl={playerFaceUrl} />
-          <div className="flex flex-col gap-1.5 min-w-[160px]">
+          <Portrait faceUrl={playerFaceUrl} />
+          <div className="flex flex-col gap-1.5 flex-1">
             <div className="flex justify-between items-baseline">
-              <span className="text-[10px] font-bold tracking-[0.18em] text-white/40 uppercase">Player</span>
+              <span className="text-[11px] font-bold tracking-wide text-white/70 truncate max-w-[90px]">
+                {playerName || 'Player'}
+              </span>
               <span className="text-[22px] font-extrabold text-white leading-none">{state.playerHp}</span>
             </div>
             <SegGauge pct={state.playerSkill} />
@@ -78,30 +73,21 @@ export function HUD({
         </div>
       </div>
 
-      {/* ── Enemy cam + panel (bottom-right) ── */}
+      {/* ── Enemy panel (bottom-right, no camera) ── */}
       <div className="absolute bottom-[52px] right-4 flex w-[220px] md:w-[260px] lg:w-[300px] flex-col items-end">
-        {/* Opponent webcam */}
-        <div className="w-full aspect-video bg-black/45 border border-white/10 border-b-0 overflow-hidden flex items-center justify-center text-white/15">
-          {remoteVideoRef ? (
-            <video ref={remoteVideoAttachRef} autoPlay playsInline className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
-          ) : (
-            <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect x="2" y="7" width="15" height="10" rx="2" stroke="currentColor" strokeWidth="1.4" />
-              <path d="M17 10l5-3v10l-5-3V10z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-            </svg>
-          )}
-        </div>
-      <div className="flex items-center gap-2.5 bg-black/55 border border-white/10 pl-4 pr-2.5 py-2 w-full">
-        <div className="flex flex-col gap-1.5 min-w-[160px]">
-          <div className="flex justify-between items-baseline">
-            <span className="text-[22px] font-extrabold text-white leading-none">{state.opponentHp}</span>
-            <span className="text-[10px] font-bold tracking-[0.18em] text-white/40 uppercase">Enemy</span>
+        <div className="flex items-center gap-2.5 bg-black/55 border border-white/10 pl-4 pr-2.5 py-2 w-full">
+          <div className="flex flex-col gap-1.5 flex-1">
+            <div className="flex justify-between items-baseline">
+              <span className="text-[22px] font-extrabold text-white leading-none">{state.opponentHp}</span>
+              <span className="text-[11px] font-bold tracking-wide text-white/70 truncate max-w-[90px] text-right">
+                {opponentName || 'Enemy'}
+              </span>
+            </div>
+            <SegGauge pct={state.opponentSkill} rtl />
+            <HpBar pct={p2Pct} rtl />
           </div>
-          <SegGauge pct={state.opponentSkill} rtl />
-          <HpBar pct={p2Pct} rtl />
+          <Portrait faceUrl={opponentFaceUrl} />
         </div>
-        <Portrait label="2P" faceUrl={opponentFaceUrl} />
-      </div>
       </div>
 
       {/* ── Controls (bottom-center) ── */}
@@ -142,22 +128,16 @@ export function HUD({
 
 /* ── Sub-components ─────────────────────────── */
 
-function Portrait({ label, faceUrl }) {
+function Portrait({ faceUrl }) {
   return (
-    <div className="shrink-0 w-14 h-14 rounded-[3px] bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-1 text-white/20 overflow-hidden relative">
+    <div className="shrink-0 w-14 h-14 rounded-[3px] bg-white/5 border border-white/10 flex flex-col items-center justify-center text-white/20 overflow-hidden relative">
       {faceUrl ? (
-        <>
-          <img src={faceUrl} alt={label} className="absolute inset-0 w-full h-full object-cover" />
-          <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-bold tracking-widest text-white uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{label}</span>
-        </>
+        <img src={faceUrl} alt="portrait" className="absolute inset-0 w-full h-full object-cover" />
       ) : (
-        <>
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.4" />
-            <path d="M4 20c0-4 3.582-7 8-7s8 3 8 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-          </svg>
-          <span className="text-[8px] font-bold tracking-widest text-white/20 uppercase">{label}</span>
-        </>
+        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.4" />
+          <path d="M4 20c0-4 3.582-7 8-7s8 3 8 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        </svg>
       )}
     </div>
   )

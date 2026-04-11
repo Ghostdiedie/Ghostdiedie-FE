@@ -142,7 +142,7 @@ function WaitingForOpponentOverlay() {
   )
 }
 
-export function GameScene({ roomCode, playerFaceUrl, opponentFaceUrl, playerCharacterKey = 'blue' }) {
+export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl, playerCharacterKey = 'blue' }) {
   const [ws, setWs] = useState(null)
   const [gameStarted, setGameStarted] = useState(false)
   const [playerIndex, setPlayerIndex] = useState(0)
@@ -152,12 +152,13 @@ export function GameScene({ roomCode, playerFaceUrl, opponentFaceUrl, playerChar
   const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0)
   const [hudBindings, setHudBindings] = useState(null)
   const [resolvedOpponentFaceUrl, setResolvedOpponentFaceUrl] = useState(() => opponentFaceUrl ?? null)
+  const [opponentName, setOpponentName] = useState('')
 
   const cvControls = useCVControls()
   const cvBridge = useLocalCVBridge(cvControls.handleAction)
   const cvMode = true
 
-  const { remoteVideoRef, attachRemoteVideoRef } = useWebRTC(ws, cvBridge.stream, playerIndex === 0, gameStarted)
+  useWebRTC(ws, cvBridge.stream, playerIndex === 0, gameStarted)
 
   const handleLoaded = useCallback(() => setAssetsLoaded(true), [])
   const handleCountdownComplete = useCallback(() => setCountdownDone(true), [])
@@ -195,6 +196,9 @@ export function GameScene({ roomCode, playerFaceUrl, opponentFaceUrl, playerChar
         setCountdownDone(false)
         if (msg.opponent?.profile_image_url) {
           setResolvedOpponentFaceUrl(msg.opponent.profile_image_url)
+        }
+        if (msg.opponent?.name) {
+          setOpponentName(msg.opponent.name)
         }
         setGameStarted(true)
       }
@@ -251,11 +255,11 @@ export function GameScene({ roomCode, playerFaceUrl, opponentFaceUrl, playerChar
           opponentHp={hudBindings.opponentHp}
           playerSkill={hudBindings.playerGauge}
           opponentSkill={hudBindings.opponentGauge}
+          playerName={playerName}
+          opponentName={opponentName}
           playerFaceUrl={playerFaceUrl}
           opponentFaceUrl={resolvedOpponentFaceUrl}
           localCvCanvasAttachRef={cvBridge.attachDisplayCanvasRef}
-          remoteVideoRef={remoteVideoRef}
-          remoteVideoAttachRef={attachRemoteVideoRef}
           cvMode={cvMode}
           cvStatus={cvBridge.status}
           cvLastDetected={cvBridge.lastAction}

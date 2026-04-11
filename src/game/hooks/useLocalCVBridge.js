@@ -124,9 +124,16 @@ export function useLocalCVBridge(onAction) {
           updateStatus('ready')
           if (!imageRef.current) {
             imageRef.current = new Image()
-            imageRef.current.onload = () => drawFrame(imageRef.current)
+            imageRef.current.onload = () => {
+              imageRef.current._pending = false
+              drawFrame(imageRef.current)
+            }
           }
-          imageRef.current.src = msg.image
+          // Skip frame if previous decode is still in progress (prevents queue buildup)
+          if (!imageRef.current._pending) {
+            imageRef.current._pending = true
+            imageRef.current.src = msg.image
+          }
         }
       })
 
