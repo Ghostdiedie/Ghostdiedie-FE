@@ -80,6 +80,7 @@ export function useMultiplayer(ws, playerMovement) {
   const gameOver = useRef(null) // null or { winner_name, loser_name, ... }
 
   const frameCount = useRef(0)
+  const lastPositionLogAt = useRef(0)
 
   // ── WebSocket message handler ──
   useEffect(() => {
@@ -172,13 +173,22 @@ export function useMultiplayer(ws, playerMovement) {
 
     // Send position every 3 frames (~20Hz)
     if (ws && ws.readyState === WebSocket.OPEN && frameCount.current % 3 === 0) {
-      ws.send(JSON.stringify({
+      const payload = {
         type: 'position_sync',
         position: [...playerMovement.position.current],
         facing: playerMovement.facing.current,
         isMoving: playerMovement.isMoving.current,
         movingBackward: playerMovement.movingBackward?.current ?? false,
+      }
+      ws.send(JSON.stringify({
+        ...payload,
       }))
+
+      const now = Date.now()
+      if (now - lastPositionLogAt.current >= 1000) {
+        lastPositionLogAt.current = now
+        console.log('[Multiplayer] send position_sync', payload)
+      }
     }
 
     // Tick local animation timers
@@ -198,6 +208,7 @@ export function useMultiplayer(ws, playerMovement) {
     f.attackDuration = attack.duration
 
     if (ws && ws.readyState === WebSocket.OPEN) {
+      console.log('[Multiplayer] send player_action', attackName)
       // Server combat calculation
       ws.send(JSON.stringify({ type: 'player_action', action: toServerAction(attackName) }))
       // Relay animation to opponent

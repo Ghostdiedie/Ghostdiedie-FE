@@ -11,6 +11,9 @@ done
 FE_DIR="$(cd "$(dirname "$SOURCE_PATH")" && pwd)"
 PROJECT_DIR="$(cd "$FE_DIR/.." && pwd)"
 CV_DIR="$PROJECT_DIR/Ghostdiedie-CV"
+CV_HOST="${CV_BRIDGE_HOST:-127.0.0.1}"
+CV_PORT="${CV_BRIDGE_PORT:-8765}"
+ACTIVE_CV_PORT="$CV_PORT"
 
 if [[ ! -d "$CV_DIR" ]]; then
   echo "[diedie] expected Ghostdiedie-CV next to Ghostdiedie-FE under $PROJECT_DIR" >&2
@@ -48,6 +51,8 @@ setup_cv_venv() {
 
   CV_PYTHON="$CV_DIR/.venv/bin/python"
   CV_PIP="$CV_DIR/.venv/bin/pip"
+  export MPLCONFIGDIR="${MPLCONFIGDIR:-$CV_DIR/.cache/matplotlib}"
+  mkdir -p "$MPLCONFIGDIR"
 
   if ! "$CV_PYTHON" -c "import cv2, mediapipe, websockets, requests, dotenv, numpy" >/dev/null 2>&1; then
     echo "[diedie] installing CV dependencies"
@@ -62,6 +67,68 @@ assert hasattr(mp, "solutions")
 PY
 }
 
+probe_existing_cv_bridge() {
+  CV_HOST="$CV_HOST" CV_PORT="$CV_PORT" "$CV_PYTHON" - <<'PY' >/dev/null 2>&1
+import asyncio
+import json
+import os
+import websockets
+
+HOST = os.environ["CV_HOST"]
+PORT = int(os.environ["CV_PORT"])
+
+async def main():
+    uri = f"ws://{HOST}:{PORT}"
+    async with websockets.connect(uri, open_timeout=1, close_timeout=1) as ws:
+        raw = await asyncio.wait_for(ws.recv(), timeout=1)
+        msg = json.loads(raw)
+        if msg.get("type") != "cv_status":
+            raise RuntimeError("not a cv bridge")
+
+asyncio.run(main())
+PY
+}
+
+can_bind_cv_port() {
+  CV_HOST="$CV_HOST" CV_PORT="$1" "$CV_PYTHON" - <<'PY' >/dev/null 2>&1
+import os
+import socket
+
+host = os.environ["CV_HOST"]
+port = int(os.environ["CV_PORT"])
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    sock.bind((host, port))
+finally:
+    sock.close()
+PY
+}
+
+find_available_cv_port() {
+  CV_HOST="$CV_HOST" CV_PORT="$CV_PORT" "$CV_PYTHON" - <<'PY'
+import os
+import socket
+import sys
+
+host = os.environ["CV_HOST"]
+start = int(os.environ["CV_PORT"])
+
+for port in range(start + 1, start + 25):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind((host, port))
+    except OSError:
+        sock.close()
+        continue
+    sock.close()
+    print(port)
+    sys.exit(0)
+
+sys.exit(1)
+PY
+}
+
 setup_cv_venv
 
 if ! validate_cv_runtime; then
@@ -71,7 +138,7 @@ if ! validate_cv_runtime; then
 fi
 
 if ! validate_cv_runtime; then
-  echo "[diedie] mediapipe runtime is still incompatible. Use Python 3.11 on this machine." >&2
+  echo "[diedie] mediapipe runtime is still incompatible after reinstall." >&2
   exit 1
 fi
 
@@ -92,19 +159,33 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-echo "[diedie] starting local CV bridge"
-(
-  cd "$CV_DIR"
-  CV_SHOW_WINDOW="${CV_SHOW_WINDOW:-0}" "$CV_PYTHON" main.py
-) &
-CV_PID=$!
+if probe_existing_cv_bridge; then
+  ACTIVE_CV_PORT="$CV_PORT"
+  echo "[diedie] reusing existing local CV bridge on ws://$CV_HOST:$ACTIVE_CV_PORT"
+else
+  if ! can_bind_cv_port "$CV_PORT"; then
+    ACTIVE_CV_PORT="$(find_available_cv_port || true)"
+    if [[ -z "$ACTIVE_CV_PORT" ]]; then
+      echo "[diedie] no available local port for CV bridge near $CV_PORT" >&2
+      exit 1
+    fi
+    echo "[diedie] port $CV_PORT is busy; starting CV bridge on ws://$CV_HOST:$ACTIVE_CV_PORT instead"
+  fi
 
-sleep 1
-if ! kill -0 "$CV_PID" >/dev/null 2>&1; then
-  echo "[diedie] CV bridge exited early. Check Ghostdiedie-CV setup." >&2
-  exit 1
+  echo "[diedie] starting local CV bridge on ws://$CV_HOST:$ACTIVE_CV_PORT"
+  (
+    cd "$CV_DIR"
+    CV_BRIDGE_HOST="$CV_HOST" CV_BRIDGE_PORT="$ACTIVE_CV_PORT" CV_SHOW_WINDOW="${CV_SHOW_WINDOW:-0}" "$CV_PYTHON" main.py
+  ) &
+  CV_PID=$!
+
+  sleep 1
+  if ! kill -0 "$CV_PID" >/dev/null 2>&1; then
+    echo "[diedie] CV bridge exited early. Check Ghostdiedie-CV setup." >&2
+    exit 1
+  fi
 fi
 
 echo "[diedie] starting frontend dev server"
 cd "$FE_DIR"
-npm run dev
+VITE_CV_BRIDGE_URL="ws://$CV_HOST:$ACTIVE_CV_PORT" npm run dev

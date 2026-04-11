@@ -1,7 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-const CV_BRIDGE_URL = import.meta.env.VITE_CV_BRIDGE_URL || 'ws://127.0.0.1:8765'
 const FRAME_RATE = 12
+const DEFAULT_PORTS = Array.from({ length: 10 }, (_, index) => 8765 + index)
+
+function getBridgeUrls() {
+  const envPorts = import.meta.env.VITE_CV_BRIDGE_PORTS
+  const ports = envPorts
+    ? envPorts.split(',').map(value => Number.parseInt(value.trim(), 10)).filter(Number.isFinite)
+    : DEFAULT_PORTS
+
+  return ports.map(port => `ws://127.0.0.1:${port}`)
+}
 
 function makeCanvas() {
   if (typeof document === 'undefined') return null
@@ -14,9 +23,17 @@ export function useLocalCVBridge(onAction) {
   const displayCanvasRef = useRef(null)
   const streamCanvasRef = useRef(makeCanvas())
   const imageRef = useRef(null)
+  const urlsRef = useRef(getBridgeUrls())
+  const urlIndexRef = useRef(0)
+  const statusRef = useRef('connecting')
   const [status, setStatus] = useState('connecting')
   const [stream, setStream] = useState(null)
   const [lastAction, setLastAction] = useState(null)
+
+  const updateStatus = useCallback((nextStatus) => {
+    statusRef.current = nextStatus
+    setStatus(nextStatus)
+  }, [])
 
   const attachDisplayCanvasRef = useCallback((node) => {
     displayCanvasRef.current = node
@@ -48,25 +65,42 @@ export function useLocalCVBridge(onAction) {
 
   useEffect(() => {
     let cancelled = false
+    let connectAttempt = 0
 
     function scheduleReconnect() {
       if (cancelled) return
       clearTimeout(reconnectTimerRef.current)
-      reconnectTimerRef.current = setTimeout(connect, 1000)
+      reconnectTimerRef.current = setTimeout(() => {
+        if (cancelled) return
+        urlIndexRef.current = 0
+        connect()
+      }, 1000)
     }
 
     function connect() {
       if (cancelled) return
+      const urls = urlsRef.current
+      if (urls.length === 0) {
+        updateStatus('offline')
+        return
+      }
 
-      setStatus('connecting')
-      const ws = new WebSocket(CV_BRIDGE_URL)
+      const attemptId = ++connectAttempt
+      const currentIndex = urlIndexRef.current
+      const currentUrl = urls[currentIndex]
+
+      updateStatus('connecting')
+      const ws = new WebSocket(currentUrl)
       socketRef.current = ws
 
       ws.addEventListener('open', () => {
-        console.log('[CVBridge] connected', { url: CV_BRIDGE_URL })
+        if (cancelled || attemptId !== connectAttempt) return
+        urlIndexRef.current = currentIndex
+        console.log('[CVBridge] connected', { url: currentUrl })
       })
 
       ws.addEventListener('message', (event) => {
+        if (cancelled || attemptId !== connectAttempt) return
         let msg
         try {
           msg = JSON.parse(event.data)
@@ -75,7 +109,7 @@ export function useLocalCVBridge(onAction) {
         }
 
         if (msg.type === 'cv_status') {
-          setStatus(msg.status || 'ready')
+          updateStatus(msg.status || 'ready')
           return
         }
 
@@ -87,7 +121,7 @@ export function useLocalCVBridge(onAction) {
         }
 
         if (msg.type === 'cv_frame' && msg.image) {
-          setStatus('ready')
+          updateStatus('ready')
           if (!imageRef.current) {
             imageRef.current = new Image()
             imageRef.current.onload = () => drawFrame(imageRef.current)
@@ -97,14 +131,24 @@ export function useLocalCVBridge(onAction) {
       })
 
       ws.addEventListener('close', () => {
+        if (cancelled || attemptId !== connectAttempt) return
         if (socketRef.current === ws) socketRef.current = null
-        setStatus('offline')
-        console.warn('[CVBridge] disconnected')
+
+        const hasNextUrl = currentIndex + 1 < urls.length
+        if (hasNextUrl && statusRef.current !== 'ready') {
+          urlIndexRef.current = currentIndex + 1
+          connect()
+          return
+        }
+
+        updateStatus('offline')
+        console.warn('[CVBridge] disconnected', { url: currentUrl })
         scheduleReconnect()
       })
 
       ws.addEventListener('error', () => {
-        console.warn('[CVBridge] connection error')
+        if (cancelled || attemptId !== connectAttempt) return
+        console.warn('[CVBridge] connection error', { url: currentUrl })
         ws.close()
       })
     }
@@ -117,7 +161,7 @@ export function useLocalCVBridge(onAction) {
       socketRef.current?.close()
       socketRef.current = null
     }
-  }, [drawFrame, onAction])
+  }, [drawFrame, onAction, updateStatus])
 
   return {
     status,

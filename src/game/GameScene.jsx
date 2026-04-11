@@ -1,6 +1,5 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { useProgress } from '@react-three/drei'
 import { createWebSocket } from '../api/client'
 import { useWebRTC } from './hooks/useWebRTC'
 import { useLocalCVBridge } from './hooks/useLocalCVBridge'
@@ -46,29 +45,14 @@ function CharacterSeparation({ playerPosRef, opponentPosRef }) {
 
 const COUNTDOWN_SEQUENCE = [5, 4, 3, 2, 1, 'FIGHT!']
 
-function LoadingTracker({ onLoaded }) {
-  const { active, loaded, total } = useProgress()
+function SceneReadySignal({ onReady }) {
   const calledRef = useRef(false)
-  const sawAssetsRef = useRef(false)
 
   useEffect(() => {
-    if (active || total > 0) {
-      sawAssetsRef.current = true
-    }
-  }, [active, total])
-
-  useEffect(() => {
-    if (calledRef.current || active) return
-    if (sawAssetsRef.current && total > 0 && loaded < total) return
-
-    const timer = setTimeout(() => {
-      if (calledRef.current) return
-      calledRef.current = true
-      onLoaded()
-    }, 150)
-
-    return () => clearTimeout(timer)
-  }, [active, loaded, onLoaded, total])
+    if (calledRef.current) return
+    calledRef.current = true
+    onReady()
+  }, [onReady])
 
   return null
 }
@@ -194,7 +178,7 @@ export function GameScene({ roomCode, playerFaceUrl, opponentFaceUrl, playerChar
     <div className="relative h-screen w-screen">
       <Canvas shadows dpr={[1, 1.5]} gl={{ antialias: true, alpha: false }} performance={{ min: 0.5 }}>
         <Suspense fallback={null}>
-          <LoadingTracker onLoaded={handleLoaded} />
+          <SceneReadySignal onReady={handleLoaded} />
           {ws && (
             <SceneWithMultiplayer
               ws={ws}
