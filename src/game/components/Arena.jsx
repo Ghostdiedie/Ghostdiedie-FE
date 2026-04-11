@@ -1,168 +1,417 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
-import {
-  ARENA_RADIUS,
-  STAND_ROWS,
-  STAND_ROW_HEIGHT,
-  STAND_ROW_DEPTH,
-  AUDIENCE_SCALE,
-} from '../constants/game'
+import { ARENA_RADIUS } from '../constants/game'
 
-function pseudoRandom(seed) {
-  const value = Math.sin(seed * 12.9898) * 43758.5453123
-  return value - Math.floor(value)
+// ─── Octagon geometry constants ───────────────────────────────────────────────
+//   APOTHEM  = distance from center to the flat face of each panel
+//   PANEL_W  = width of each flat panel (chord)
+//   VERTEX_R = distance from center to corner vertex
+const APOTHEM  = ARENA_RADIUS                               // 12
+const PANEL_W  = 2 * APOTHEM * Math.tan(Math.PI / 8)       // ≈ 9.94
+const VERTEX_R = APOTHEM / Math.cos(Math.PI / 8)           // ≈ 12.98
+
+const CAGE_H    = 5       // fence height
+const ROOM_HALF = 22      // room extends ±22
+const WALL_H    = 9       // ceiling height
+
+// ─── Palette ──────────────────────────────────────────────────────────────────
+const C = {
+  floor      : '#282724',
+  mat        : '#201e1b',   // canvas inside cage
+  concrete   : '#2a2826',
+  wall       : '#242220',
+  metal      : '#1c1c1e',
+  metalLight : '#2e2e30',
+  yellow     : '#ffcc00',
+  yellowDim  : '#cc9900',
+  black      : '#111111',
+  crowd      : '#1c1a18',
 }
 
-function AudienceFigure({ position, color }) {
+function pseudoRandom(seed) {
+  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453
+  return x - Math.floor(x)
+}
+
+// ─── Canvas mat (fight floor inside cage) ────────────────────────────────────
+function OctagonMat() {
   return (
-    <group position={position} scale={AUDIENCE_SCALE}>
-      {/* Body */}
-      <mesh>
-        <capsuleGeometry args={[0.15, 0.3, 4, 8]} />
-        <meshStandardMaterial color={color} />
+    <group>
+      {/* Dark canvas mat — flush with floor */}
+      <mesh rotation={[0, Math.PI / 8, 0]} position={[0, 0.004, 0]} receiveShadow>
+        <cylinderGeometry args={[VERTEX_R + 0.05, VERTEX_R + 0.05, 0.008, 8]} />
+        <meshStandardMaterial color={C.mat} roughness={0.92} />
       </mesh>
-      {/* Head */}
-      <mesh position={[0, 0.38, 0]}>
-        <sphereGeometry args={[0.12, 8, 8]} />
-        <meshStandardMaterial color="#f5deb3" />
+
+      {/* Yellow boundary ring */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.009, 0]}>
+        <ringGeometry args={[ARENA_RADIUS - 0.28, ARENA_RADIUS, 64]} />
+        <meshStandardMaterial color={C.yellow} roughness={0.3} />
       </mesh>
-      {/* Left arm */}
-      <group position={[-0.22, 0.1, 0]} rotation={[0, 0, 0.3]}>
-        <mesh>
-          <capsuleGeometry args={[0.05, 0.2, 4, 6]} />
-          <meshStandardMaterial color={color} />
-        </mesh>
-      </group>
-      {/* Right arm */}
-      <group position={[0.22, 0.1, 0]} rotation={[0, 0, -0.3]}>
-        <mesh>
-          <capsuleGeometry args={[0.05, 0.2, 4, 6]} />
-          <meshStandardMaterial color={color} />
-        </mesh>
-      </group>
+
+      {/* Centre cross — player alignment mark */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.009, 0]}>
+        <planeGeometry args={[8, 0.1]} />
+        <meshStandardMaterial color={C.yellowDim} roughness={0.4} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.009, 0]}>
+        <planeGeometry args={[0.1, 8]} />
+        <meshStandardMaterial color={C.yellowDim} roughness={0.4} />
+      </mesh>
     </group>
   )
 }
 
-function AudienceRow({ radius, y, count }) {
-  const figures = useMemo(() => {
-    const arr = []
-    const colors = ['#c2185b', '#1565c0', '#2e7d32', '#f57f17', '#6a1b9a', '#e65100', '#00838f', '#4527a0']
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2
-      const jitterR = (pseudoRandom(radius * 17 + y * 29 + i) - 0.5) * 0.3
-      const jitterAngle = (pseudoRandom(radius * 31 + y * 43 + i) - 0.5) * (0.5 / count) * Math.PI * 2
-      const a = angle + jitterAngle
-      const r = radius + jitterR
-      arr.push({
-        key: i,
-        pos: [Math.sin(a) * r, y, Math.cos(a) * r],
-        color: colors[Math.floor(pseudoRandom(radius * 59 + y * 71 + i) * colors.length)],
-      })
-    }
-    return arr
-  }, [radius, y, count])
+// ─── MMA-style octagonal cage ─────────────────────────────────────────────────
+function OctagonCage() {
+  const BARS = 8   // vertical bars per panel
 
   return (
-    <>
-      {figures.map((f) => (
-        <AudienceFigure key={f.key} position={f.pos} color={f.color} />
-      ))}
-    </>
+    <group>
+      {/* 8 fence panels */}
+      {Array.from({ length: 8 }, (_, i) => {
+        const angle = (i / 8) * Math.PI * 2 + Math.PI / 8
+        return (
+          <group
+            key={i}
+            position={[Math.sin(angle) * APOTHEM, 0, Math.cos(angle) * APOTHEM]}
+            rotation={[0, angle, 0]}
+          >
+            {/* Vertical bars */}
+            {Array.from({ length: BARS }, (_, j) => (
+              <mesh
+                key={j}
+                position={[(j / (BARS - 1) - 0.5) * PANEL_W, CAGE_H / 2, 0]}
+              >
+                <boxGeometry args={[0.07, CAGE_H, 0.07]} />
+                <meshStandardMaterial color={C.metal} metalness={0.75} roughness={0.35} />
+              </mesh>
+            ))}
+
+            {/* Horizontal rails */}
+            {[0.32, CAGE_H * 0.52, CAGE_H - 0.22].map((y, j) => (
+              <mesh key={j} position={[0, y, 0]}>
+                <boxGeometry args={[PANEL_W + 0.05, 0.08, 0.08]} />
+                <meshStandardMaterial color={C.metalLight} metalness={0.6} roughness={0.5} />
+              </mesh>
+            ))}
+
+            {/* Top cap rail */}
+            <mesh position={[0, CAGE_H + 0.06, 0]}>
+              <boxGeometry args={[PANEL_W + 0.1, 0.14, 0.14]} />
+              <meshStandardMaterial color={C.metal} metalness={0.75} roughness={0.4} />
+            </mesh>
+
+            {/* Bottom base rail */}
+            <mesh position={[0, 0.06, 0]}>
+              <boxGeometry args={[PANEL_W + 0.08, 0.12, 0.12]} />
+              <meshStandardMaterial color={C.metal} metalness={0.75} roughness={0.4} />
+            </mesh>
+          </group>
+        )
+      })}
+
+      {/* 8 corner posts (at octagon vertices) */}
+      {Array.from({ length: 8 }, (_, i) => {
+        const angle = (i / 8) * Math.PI * 2
+        return (
+          <mesh
+            key={i}
+            position={[Math.sin(angle) * VERTEX_R, CAGE_H / 2, Math.cos(angle) * VERTEX_R]}
+            castShadow
+          >
+            <boxGeometry args={[0.24, CAGE_H + 0.35, 0.24]} />
+            <meshStandardMaterial color="#0e0e10" metalness={0.85} roughness={0.25} />
+          </mesh>
+        )
+      })}
+    </group>
   )
 }
 
-function Stands() {
-  const rows = []
-  for (let i = 0; i < STAND_ROWS; i++) {
-    const rowRadius = ARENA_RADIUS + 1 + i * STAND_ROW_DEPTH
-    const rowY = i * STAND_ROW_HEIGHT + 0.3
-    const audienceCount = 40 + i * 12
-
-    // Stone seating step
-    rows.push(
-      <mesh key={`step-${i}`} position={[0, rowY / 2, 0]}>
-        <cylinderGeometry args={[rowRadius + STAND_ROW_DEPTH, rowRadius, rowY + 0.3, 64, 1, true]} />
-        <meshStandardMaterial color="#d4c5a9" side={THREE.DoubleSide} />
-      </mesh>
-    )
-
-    // Flat seat surface
-    rows.push(
-      <mesh key={`seat-${i}`} rotation={[-Math.PI / 2, 0, 0]} position={[0, rowY + 0.15, 0]}>
-        <ringGeometry args={[rowRadius, rowRadius + STAND_ROW_DEPTH, 64]} />
-        <meshStandardMaterial color="#c4b590" />
-      </mesh>
-    )
-
-    // Audience figures sitting on this row
-    rows.push(
-      <AudienceRow
-        key={`aud-${i}`}
-        radius={rowRadius + STAND_ROW_DEPTH * 0.5}
-        y={rowY + 0.6}
-        count={audienceCount}
-      />
-    )
-  }
-  return <group>{rows}</group>
-}
-
-function Pillars() {
-  const pillars = useMemo(() => {
-    const arr = []
-    const count = 24
-    const radius = ARENA_RADIUS + 1 + STAND_ROWS * STAND_ROW_DEPTH + 0.5
-    const topY = STAND_ROWS * STAND_ROW_HEIGHT + 2
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2
-      arr.push({
-        key: i,
-        pos: [Math.sin(angle) * radius, topY / 2, Math.cos(angle) * radius],
-        height: topY,
-      })
-    }
-    return arr
-  }, [])
+// ─── Overhead light rig with hazard-striped beams ────────────────────────────
+function OverheadRig() {
+  const RIG_Y  = WALL_H - 0.55
+  const SPAN   = ROOM_HALF * 1.9
 
   return (
+    <group>
+      {/* Two main structural cross-beams (X and Z axes) */}
+      {[0, Math.PI / 2].map((rotY, i) => (
+        <group key={i} position={[0, RIG_Y, 0]} rotation={[0, rotY, 0]}>
+          {/* Web */}
+          <mesh>
+            <boxGeometry args={[SPAN, 0.4, 0.32]} />
+            <meshStandardMaterial color={C.metal} metalness={0.7} roughness={0.5} />
+          </mesh>
+          {/* Bottom flange */}
+          <mesh position={[0, -0.24, 0]}>
+            <boxGeometry args={[SPAN, 0.08, 0.72]} />
+            <meshStandardMaterial color={C.metal} metalness={0.7} roughness={0.5} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* 4 industrial floodlight pods on the beams */}
+      {[[-7, 0], [7, 0], [0, -7], [0, 7]].map(([ox, oz], i) => (
+        <group key={i} position={[ox, RIG_Y - 0.55, oz]}>
+          {/* Pod housing */}
+          <mesh>
+            <cylinderGeometry args={[0.55, 0.72, 0.35, 8]} />
+            <meshStandardMaterial color="#181818" metalness={0.6} roughness={0.5} />
+          </mesh>
+          {/* Emissive lens */}
+          <mesh position={[0, -0.18, 0]} rotation={[Math.PI, 0, 0]}>
+            <circleGeometry args={[0.48, 8]} />
+            <meshStandardMaterial color="#fff8d0" emissive="#fff8d0" emissiveIntensity={4} />
+          </mesh>
+          {/* Cage guard ring */}
+          <mesh position={[0, -0.19, 0]} rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.52, 0.025, 6, 12]} />
+            <meshStandardMaterial color="#1a1a1a" metalness={0.7} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Hazard-striped secondary beams (2 beams parallel to Z, above cage) */}
+      {[-11, 11].map((ox, bi) => (
+        <group key={bi} position={[ox, RIG_Y + 0.25, 0]}>
+          {Array.from({ length: 10 }, (_, j) => (
+            <mesh key={j} position={[0, 0, (j - 4.5) * 3.2]}>
+              <boxGeometry args={[1.4, 0.45, 3.19]} />
+              <meshStandardMaterial
+                color={j % 2 === 0 ? C.yellow : C.black}
+                roughness={0.35}
+              />
+            </mesh>
+          ))}
+          {/* Bottom flange */}
+          <mesh position={[0, -0.27, 0]}>
+            <boxGeometry args={[1.1, 0.08, ROOM_HALF * 2 - 4]} />
+            <meshStandardMaterial color={C.metal} metalness={0.6} roughness={0.5} />
+          </mesh>
+        </group>
+      ))}
+
+      {/* Pendant drop chains / cables at corners of rig */}
+      {[[-6, -6], [6, -6], [-6, 6], [6, 6]].map(([ox, oz], i) => (
+        <mesh key={i} position={[ox, RIG_Y - 1, oz]}>
+          <cylinderGeometry args={[0.02, 0.02, 2, 4]} />
+          <meshStandardMaterial color="#111" metalness={0.8} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+// ─── Warehouse concrete floor ─────────────────────────────────────────────────
+function WarehouseFloor() {
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+        <planeGeometry args={[ROOM_HALF * 2, ROOM_HALF * 2]} />
+        <meshStandardMaterial color={C.floor} roughness={0.96} />
+      </mesh>
+      {/* Slightly worn ring around cage base */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]}>
+        <ringGeometry args={[VERTEX_R + 0.1, VERTEX_R + 4, 64]} />
+        <meshStandardMaterial color="#222120" roughness={0.98} />
+      </mesh>
+    </group>
+  )
+}
+
+// ─── Warehouse walls ──────────────────────────────────────────────────────────
+function WarehouseWalls() {
+  const H = ROOM_HALF
+  const S = H * 2
+
+  return (
+    <group>
+      {/* 4 concrete walls */}
+      {[
+        { pos: [0,    WALL_H / 2, -H + 0.6], dims: [S + 1.2, WALL_H, 1.2] },
+        { pos: [0,    WALL_H / 2,  H - 0.6], dims: [S + 1.2, WALL_H, 1.2] },
+        { pos: [-H + 0.6, WALL_H / 2, 0],   dims: [1.2, WALL_H, S + 1.2] },
+        { pos: [ H - 0.6, WALL_H / 2, 0],   dims: [1.2, WALL_H, S + 1.2] },
+      ].map((w, i) => (
+        <mesh key={i} position={w.pos} receiveShadow>
+          <boxGeometry args={w.dims} />
+          <meshStandardMaterial color={C.wall} roughness={1} />
+        </mesh>
+      ))}
+
+      {/* Yellow hazard stripe at the base of each wall */}
+      {[
+        { pos: [0, 0.13, -H + 1.25],  dims: [S - 2, 0.26, 0.04] },
+        { pos: [0, 0.13,  H - 1.25],  dims: [S - 2, 0.26, 0.04] },
+        { pos: [-H + 1.25, 0.13, 0],  dims: [0.04, 0.26, S - 2] },
+        { pos: [ H - 1.25, 0.13, 0],  dims: [0.04, 0.26, S - 2] },
+      ].map((s, i) => (
+        <mesh key={i} position={s.pos}>
+          <boxGeometry args={s.dims} />
+          <meshStandardMaterial color={C.yellow} roughness={0.4} />
+        </mesh>
+      ))}
+
+      {/* Mid-wall horizontal divider strip */}
+      {[
+        { pos: [0, WALL_H * 0.42, -H + 0.62], dims: [S, 0.12, 0.04] },
+        { pos: [0, WALL_H * 0.42,  H - 0.62], dims: [S, 0.12, 0.04] },
+        { pos: [-H + 0.62, WALL_H * 0.42, 0], dims: [0.04, 0.12, S] },
+        { pos: [ H - 0.62, WALL_H * 0.42, 0], dims: [0.04, 0.12, S] },
+      ].map((s, i) => (
+        <mesh key={i} position={s.pos}>
+          <boxGeometry args={s.dims} />
+          <meshStandardMaterial color="#303030" roughness={1} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+// ─── Ceiling with exposed I-beams ─────────────────────────────────────────────
+function WarehouseCeiling() {
+  const S = ROOM_HALF * 2
+  return (
+    <group>
+      <mesh position={[0, WALL_H + 0.5, 0]}>
+        <boxGeometry args={[S + 1.2, 1.0, S + 1.2]} />
+        <meshStandardMaterial color={C.concrete} roughness={1} />
+      </mesh>
+      {[-8, 0, 8].map((x, i) => (
+        <group key={i} position={[x, WALL_H - 0.75, 0]}>
+          <mesh>
+            <boxGeometry args={[0.14, 1.1, S - 2]} />
+            <meshStandardMaterial color={C.metal} metalness={0.6} roughness={0.6} />
+          </mesh>
+          <mesh position={[0, 0.6, 0]}>
+            <boxGeometry args={[0.72, 0.13, S - 2]} />
+            <meshStandardMaterial color={C.metal} metalness={0.6} roughness={0.6} />
+          </mesh>
+          <mesh position={[0, -0.6, 0]}>
+            <boxGeometry args={[0.72, 0.13, S - 2]} />
+            <meshStandardMaterial color={C.metal} metalness={0.6} roughness={0.6} />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  )
+}
+
+// ─── Corner columns ───────────────────────────────────────────────────────────
+function Columns() {
+  const H = ROOM_HALF - 1.5
+  const positions = [
+    [-H, -H], [H, -H], [-H, H], [H, H],
+    [0, -H], [0, H], [-H, 0], [H, 0],
+  ]
+  return (
     <>
-      {pillars.map((p) => (
-        <mesh key={p.key} position={p.pos} castShadow>
-          <cylinderGeometry args={[0.25, 0.3, p.height, 8]} />
-          <meshStandardMaterial color="#c9b99a" />
+      {positions.map(([px, pz], i) => (
+        <mesh key={i} position={[px, WALL_H / 2, pz]} receiveShadow>
+          <boxGeometry args={[1.9, WALL_H + 1, 1.9]} />
+          <meshStandardMaterial color={C.concrete} roughness={1} />
         </mesh>
       ))}
     </>
   )
 }
 
+// ─── Crowd silhouettes ────────────────────────────────────────────────────────
+function Crowd() {
+  const COUNT = 140
+  const ref   = useRef()
+  const dummy = useMemo(() => new THREE.Object3D(), [])
+
+  const figures = useMemo(() => (
+    Array.from({ length: COUNT }, (_, i) => {
+      const angle  = (i / COUNT) * Math.PI * 2 + (pseudoRandom(i * 7.3) - 0.5) * 0.18
+      const radius = VERTEX_R + 2.2 + pseudoRandom(i * 13.7) * 5.0
+      const h      = 0.85 + pseudoRandom(i * 5.1) * 0.7
+      const w      = 0.3  + pseudoRandom(i * 3.9) * 0.12
+      return {
+        x: Math.sin(angle) * radius,
+        z: Math.cos(angle) * radius,
+        y: h / 2,
+        rotY: angle + Math.PI,
+        sx: w, sy: h, sz: w * 0.48,
+      }
+    })
+  ), [])
+
+  useEffect(() => {
+    if (!ref.current) return
+    figures.forEach((f, i) => {
+      dummy.position.set(f.x, f.y, f.z)
+      dummy.rotation.set(0, f.rotY, 0)
+      dummy.scale.set(f.sx, f.sy, f.sz)
+      dummy.updateMatrix()
+      ref.current.setMatrixAt(i, dummy.matrix)
+    })
+    ref.current.instanceMatrix.needsUpdate = true
+  }, [figures, dummy])
+
+  return (
+    <instancedMesh ref={ref} args={[null, null, COUNT]}>
+      <boxGeometry args={[1, 1, 1]} />
+      <meshStandardMaterial color={C.crowd} roughness={1} />
+    </instancedMesh>
+  )
+}
+
+// ─── Scattered industrial props ───────────────────────────────────────────────
+function Props() {
+  const barrels = [[-18, -6], [-18, -3.5], [-20, 9], [19, 12], [18.5, -9], [-18, 14]]
+  const crates  = [[-17, -17], [17, -17], [-18, 17]]
+
+  return (
+    <group>
+      {barrels.map(([px, pz], i) => {
+        const lean = (pseudoRandom(i * 17) - 0.5) * 0.09
+        return (
+          <group key={i} position={[px, 0, pz]} rotation={[lean, pseudoRandom(i * 9) * 6, 0]}>
+            <mesh position={[0, 0.52, 0]} castShadow>
+              <cylinderGeometry args={[0.33, 0.33, 1.04, 8]} />
+              <meshStandardMaterial color="#1e1c18" metalness={0.4} roughness={0.85} />
+            </mesh>
+            {[0.18, 0.52, 0.86].map((y, j) => (
+              <mesh key={j} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                <torusGeometry args={[0.345, 0.026, 6, 16]} />
+                <meshStandardMaterial color="#111010" metalness={0.5} roughness={0.7} />
+              </mesh>
+            ))}
+          </group>
+        )
+      })}
+
+      {crates.map(([px, pz], i) => (
+        <group key={i} position={[px, 0, pz]}>
+          {[0, 0.8, 1.6].map((y, j) => (
+            <mesh key={j} position={[0, y + 0.38, 0]} castShadow>
+              <boxGeometry args={[1.1 - j * 0.08, 0.72, 1.1 - j * 0.08]} />
+              <meshStandardMaterial color="#1a1814" roughness={0.9} />
+            </mesh>
+          ))}
+        </group>
+      ))}
+    </group>
+  )
+}
+
+// ─── Main export ──────────────────────────────────────────────────────────────
 export function Arena() {
   return (
     <group>
-      {/* Arena floor — sandy colosseum ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, 0, 0]}>
-        <circleGeometry args={[ARENA_RADIUS, 64]} />
-        <meshStandardMaterial color="#e8d5a3" />
-      </mesh>
-
-      {/* Center ring marker */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
-        <ringGeometry args={[2.5, 2.7, 64]} />
-        <meshStandardMaterial color="#c4a265" />
-      </mesh>
-
-      {/* Tiered audience stands */}
-      <Stands />
-
-      {/* Colosseum pillars around the top */}
-      <Pillars />
-
-      {/* Ground plane extending beyond colosseum */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow position={[0, -0.01, 0]}>
-        <planeGeometry args={[100, 100]} />
-        <meshStandardMaterial color="#c8b888" />
-      </mesh>
+      <WarehouseFloor />
+      <OctagonMat />
+      <OctagonCage />
+      <OverheadRig />
+      <WarehouseWalls />
+      <WarehouseCeiling />
+      <Columns />
+      <Crowd />
+      <Props />
     </group>
   )
 }

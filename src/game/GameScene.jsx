@@ -86,30 +86,36 @@ function Scene({ combat }) {
 
   return (
     <>
-      {/* Lighting — bright warm colosseum */}
-      <ambientLight intensity={0.6} color="#fff8e7" />
-      <directionalLight
-        position={[8, 15, 5]}
-        intensity={2}
-        color="#fff5e0"
+      {/* ── Lighting: warehouse arena ─────────────────────────── */}
+
+      {/* Warm ambient fill — makes the whole space readable */}
+      <ambientLight intensity={0.55} color="#c8b888" />
+
+      {/* THE BIG CEILING LIGHT — main shadow caster */}
+      <pointLight
+        position={[0, 8, 0]}
+        intensity={70}
+        color="#fff4d0"
+        distance={45}
+        decay={1.4}
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
-        shadow-camera-far={50}
-        shadow-camera-left={-20}
-        shadow-camera-right={20}
-        shadow-camera-top={20}
-        shadow-camera-bottom={-20}
+        shadow-camera-near={0.5}
+        shadow-camera-far={45}
       />
 
-      {/* Warm hemisphere light — sky/ground */}
-      <hemisphereLight args={['#87ceeb', '#e8d5a3', 0.5]} />
+      {/* 4 side-fill from the floodlight pods */}
+      <pointLight position={[-7, 7.5, 0]}  intensity={18} color="#ffe8a0" distance={30} decay={2} />
+      <pointLight position={[ 7, 7.5, 0]}  intensity={18} color="#ffe8a0" distance={30} decay={2} />
+      <pointLight position={[0,  7.5, -7]} intensity={18} color="#ffe8a0" distance={30} decay={2} />
+      <pointLight position={[0,  7.5,  7]} intensity={18} color="#ffe8a0" distance={30} decay={2} />
 
-      {/* Light atmospheric fog */}
-      <fog attach="fog" args={['#d4c5a0', 30, 60]} />
+      {/* Mild haze — you can see the whole arena */}
+      <fog attach="fog" args={['#1a1612', 32, 62]} />
 
-      {/* Sky color */}
-      <color attach="background" args={['#87ceeb']} />
+      {/* Background — dark warehouse */}
+      <color attach="background" args={['#161410']} />
 
       {/* Arena */}
       <Arena />
