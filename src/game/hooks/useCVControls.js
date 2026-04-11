@@ -53,6 +53,12 @@ export function useCVControls() {
       case 'walk right':
         pulseKey('right', MOVE_PULSE_MS)
         break
+      case 'walk forward':
+        pulseKey('forward', MOVE_PULSE_MS)
+        break
+      case 'walk backward':
+        pulseKey('backward', MOVE_PULSE_MS)
+        break
       default:
         console.log('[CVControls] ignored action', action)
     }
