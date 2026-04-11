@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SOURCE_PATH="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE_PATH" ]]; do
+  LINK_DIR="$(cd "$(dirname "$SOURCE_PATH")" && pwd)"
+  SOURCE_PATH="$(readlink "$SOURCE_PATH")"
+  [[ "$SOURCE_PATH" != /* ]] && SOURCE_PATH="$LINK_DIR/$SOURCE_PATH"
+done
+
+FE_DIR="$(cd "$(dirname "$SOURCE_PATH")" && pwd)"
+PROJECT_DIR="$(cd "$FE_DIR/.." && pwd)"
+CV_DIR="$PROJECT_DIR/Ghostdiedie-CV"
+
+if [[ ! -d "$CV_DIR" ]]; then
+  echo "[diedie] expected Ghostdiedie-CV next to Ghostdiedie-FE under $PROJECT_DIR" >&2
+  exit 1
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "[diedie] npm not found" >&2
+  exit 1
+fi
+
+SYSTEM_PYTHON="$(command -v python3 || true)"
+if [[ -z "$SYSTEM_PYTHON" ]]; then
+  echo "[diedie] python3 not found" >&2
+  exit 1
+fi
+
+if [[ ! -d "$CV_DIR/.venv" ]]; then
+  echo "[diedie] creating CV virtualenv"
+  "$SYSTEM_PYTHON" -m venv "$CV_DIR/.venv"
+fi
+
+CV_PYTHON="$CV_DIR/.venv/bin/python"
+CV_PIP="$CV_DIR/.venv/bin/pip"
+
+if ! "$CV_PYTHON" -c "import cv2, mediapipe, websockets, requests, dotenv, numpy" >/dev/null 2>&1; then
+  echo "[diedie] installing CV dependencies"
+  "$CV_PIP" install -r "$CV_DIR/requirements.txt"
+fi
+
+if [[ ! -d "$FE_DIR/node_modules" ]]; then
+  echo "[diedie] installing FE dependencies"
+  (
+    cd "$FE_DIR"
+    npm install
+  )
+fi
+
+cleanup() {
+  if [[ -n "${CV_PID:-}" ]]; then
+    kill "$CV_PID" >/dev/null 2>&1 || true
+    wait "$CV_PID" 2>/dev/null || true
+  fi
+}
+
+trap cleanup EXIT INT TERM
+
+echo "[diedie] starting local CV bridge"
+(
+  cd "$CV_DIR"
+  CV_SHOW_WINDOW="${CV_SHOW_WINDOW:-0}" "$CV_PYTHON" main.py
+) &
+CV_PID=$!
+
+sleep 1
+if ! kill -0 "$CV_PID" >/dev/null 2>&1; then
+  echo "[diedie] CV bridge exited early. Check Ghostdiedie-CV setup." >&2
+  exit 1
+fi
+
+echo "[diedie] starting frontend dev server"
+cd "$FE_DIR"
+npm run dev
