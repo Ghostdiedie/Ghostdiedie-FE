@@ -49,6 +49,72 @@ const COUNTDOWN_STEP_MS = 1000
 const FIGHT_STEP_MS = 1400
 const COUNTDOWN_TOTAL_MS = (COUNTDOWN_SEQUENCE.length - 1) * COUNTDOWN_STEP_MS + FIGHT_STEP_MS
 
+function RoundWinOverlay({ roundNumber, winnerName, isMe, roundWins, playerIndex }) {
+  const myWins = roundWins[playerIndex] ?? 0
+  const oppWins = roundWins[1 - playerIndex] ?? 0
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 select-none animate-fade-in">
+      <div className="flex flex-col items-center gap-3">
+        <span className="text-white/35 font-bold tracking-[0.35em] text-[11px] uppercase">Round {roundNumber} Complete</span>
+        <span
+          className={[
+            'font-black leading-none text-[clamp(3.5rem,11vw,7rem)] drop-shadow-[0_0_40px_rgba(0,0,0,0.8)]',
+            isMe ? 'text-green-400' : 'text-red-400',
+          ].join(' ')}
+        >
+          {winnerName}
+        </span>
+        <span className="font-black tracking-[0.18em] text-white/70 text-[clamp(1.2rem,3.5vw,2.2rem)] -mt-1 uppercase">
+          Wins Round {roundNumber}
+        </span>
+        {/* Round win dots */}
+        <div className="flex items-center gap-6 mt-3">
+          <div className="flex gap-2">
+            {[0, 1].map(i => (
+              <span key={i} className={`w-3.5 h-3.5 rounded-full border ${i < myWins ? 'bg-green-400 border-green-400' : 'bg-transparent border-white/30'}`} />
+            ))}
+          </div>
+          <span className="text-white/20 font-bold text-sm">VS</span>
+          <div className="flex gap-2">
+            {[0, 1].map(i => (
+              <span key={i} className={`w-3.5 h-3.5 rounded-full border ${i < oppWins ? 'bg-red-400 border-red-400' : 'bg-transparent border-white/30'}`} />
+            ))}
+          </div>
+        </div>
+        <p className="text-white/25 text-xs mt-3 tracking-widest uppercase">Next round starting soon…</p>
+      </div>
+    </div>
+  )
+}
+
+function GameEndOverlay({ winnerName, isMe, onBack }) {
+  return (
+    <div className="fixed inset-0 z-60 flex flex-col items-center justify-center bg-black/90 select-none">
+      <div className="flex flex-col items-center gap-4">
+        <span className="text-white/35 font-bold tracking-[0.35em] text-[11px] uppercase">Match Over</span>
+        <span
+          className={[
+            'font-black leading-none text-[clamp(3.5rem,11vw,7rem)] drop-shadow-[0_0_40px_rgba(0,0,0,0.8)]',
+            isMe ? 'text-green-400' : 'text-red-400',
+          ].join(' ')}
+        >
+          {winnerName}
+        </span>
+        <span className="font-black tracking-[0.18em] text-white/70 text-[clamp(1.2rem,3.5vw,2rem)] -mt-1 uppercase">
+          Wins the Match!
+        </span>
+        <button
+          onClick={onBack}
+          className="mt-10 px-10 py-3.5 bg-white text-gray-900 font-bold text-base rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-colors pointer-events-auto"
+        >
+          Back to Lobby
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function SceneReadySignal({ onReady }) {
   const calledRef = useRef(false)
 
@@ -61,7 +127,7 @@ function SceneReadySignal({ onReady }) {
   return null
 }
 
-function CountdownOverlay({ countdownStartMs, serverClockOffsetMs, onComplete }) {
+function CountdownOverlay({ countdownStartMs, serverClockOffsetMs, onComplete, roundNumber = 1 }) {
   const [nowMs, setNowMs] = useState(() => Date.now())
 
   useEffect(() => {
@@ -111,8 +177,13 @@ function CountdownOverlay({ countdownStartMs, serverClockOffsetMs, onComplete })
   const visible = stepElapsedMs < showFor
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none select-none">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center pointer-events-none select-none">
       <div className="absolute inset-0 bg-black/60 transition-opacity duration-500" style={{ opacity: Math.max(0, 1 - step * 0.15) }} />
+      {roundNumber > 1 && (
+        <div className="relative z-10 mb-2">
+          <span className="font-black tracking-[0.3em] text-white/50 text-[clamp(1.2rem,3vw,2rem)] uppercase">Round {roundNumber}</span>
+        </div>
+      )}
       <div className={['relative z-10 transition-[opacity,transform] duration-220 ease-out', visible ? 'opacity-100 scale-100' : 'opacity-0 scale-[1.3]'].join(' ')}>
         {isFight
           ? <span className="font-black tracking-[0.05em] text-red-500 text-[clamp(4rem,12vw,7rem)] drop-shadow-[0_0_40px_rgba(239,68,68,0.5)]">FIGHT!</span>
@@ -157,6 +228,8 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
   const [opponentName, setOpponentName] = useState('')
   const [roundNumber, setRoundNumber] = useState(1)
   const [roundWins, setRoundWins] = useState([0, 0]) // [player0Wins, player1Wins]
+  const [roundEndInfo, setRoundEndInfo] = useState(null) // { roundNumber, winnerName, winnerIndex, roundWins, isGameOver }
+  const [gameEndInfo, setGameEndInfo] = useState(null)   // { winnerName, winnerIndex }
 
   const cvControls = useCVControls()
   const cvBridge = useLocalCVBridge(cvControls.handleAction)
@@ -214,6 +287,16 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
         }
         setGameStarted(true)
       }
+      if (msg.type === 'round_end') {
+        console.log('[GameScene] round_end received', msg)
+        setRoundEndInfo({
+          roundNumber: msg.round_number,
+          winnerName: msg.winner_name,
+          winnerIndex: msg.winner_index,
+          roundWins: msg.round_wins ?? [0, 0],
+          isGameOver: msg.game_over ?? false,
+        })
+      }
       if (msg.type === 'round_start') {
         const clientNowMs = Date.now()
         const nextServerClockOffsetMs = (msg.server_now_ms ?? clientNowMs) - clientNowMs
@@ -227,6 +310,15 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
         setCountdownDone(false)
         setRoundNumber(msg.round_number ?? 2)
         setRoundWins(msg.round_wins ?? [0, 0])
+        setRoundEndInfo(null)
+      }
+      if (msg.type === 'game_end') {
+        console.log('[GameScene] game_end received', msg)
+        setRoundEndInfo(null)
+        setGameEndInfo({
+          winnerName: msg.winner_name,
+          winnerIndex: msg.winner_index ?? -1,
+        })
       }
     }
     socket.addEventListener('message', onMsg)
@@ -240,11 +332,12 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
       socket.close()
       console.log('[GameScene] ws closed', { roomCode })
     }
-  }, [roomCode])
+  }, [roomCode, navigate])
 
   const showLoading = !assetsLoaded
   const showWaiting = assetsLoaded && !gameStarted
-  const showCountdown = assetsLoaded && gameStarted && !countdownDone
+  const showRoundEnd = !!roundEndInfo && !gameEndInfo
+  const showCountdown = assetsLoaded && gameStarted && !countdownDone && !roundEndInfo && !gameEndInfo
   const gameReady = assetsLoaded && gameStarted && countdownDone
 
   return (
@@ -272,6 +365,25 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
           countdownStartMs={countdownStartMs}
           serverClockOffsetMs={serverClockOffsetMs}
           onComplete={handleCountdownComplete}
+          roundNumber={roundNumber}
+        />
+      )}
+
+      {showRoundEnd && roundEndInfo && (
+        <RoundWinOverlay
+          roundNumber={roundEndInfo.roundNumber}
+          winnerName={roundEndInfo.winnerName}
+          isMe={roundEndInfo.winnerIndex === playerIndex}
+          roundWins={roundEndInfo.roundWins}
+          playerIndex={playerIndex}
+        />
+      )}
+
+      {gameEndInfo && (
+        <GameEndOverlay
+          winnerName={gameEndInfo.winnerName}
+          isMe={gameEndInfo.winnerIndex === playerIndex}
+          onBack={() => navigate('/')}
         />
       )}
 
