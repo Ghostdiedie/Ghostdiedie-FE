@@ -5,13 +5,9 @@ import Button from '../components/Button'
 function Dots() {
   return (
     <div className="flex gap-1.5 items-center">
-      {[0, 150, 300].map(d => (
-        <span
-          key={d}
-          className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce"
-          style={{ animationDelay: `${d}ms` }}
-        />
-      ))}
+      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:0ms]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:150ms]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:300ms]" />
     </div>
   )
 }
@@ -43,7 +39,9 @@ export default function JoinRoom({ playerName, onJoined, onBack }) {
         try {
           const msg = JSON.parse(e.data)
           if (msg.type === 'GAME_START') onJoined(code)
-        } catch {}
+        } catch {
+          // Ignore malformed socket payloads.
+        }
       }
 
       ws.onerror = () => { setPhase('idle'); setErrorMsg('Connection error. Try again.') }
@@ -58,7 +56,7 @@ export default function JoinRoom({ playerName, onJoined, onBack }) {
   const isLoading = phase === 'joining' || phase === 'connecting'
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-rose-100 flex flex-col items-center justify-center relative overflow-hidden select-none">
+    <div className="min-h-screen bg-linear-to-br from-orange-50 via-white to-rose-100 flex flex-col items-center justify-center relative overflow-hidden select-none">
 
       {/* Background blobs */}
       <div className="absolute top-[-80px] left-[-80px] w-[400px] h-[400px] rounded-full bg-rose-300/25 blur-3xl pointer-events-none" />
@@ -107,7 +105,7 @@ export default function JoinRoom({ playerName, onJoined, onBack }) {
             <Button onClick={handleJoin} disabled={code.length !== 4} className="w-full justify-center">
               Join
             </Button>
-            <Button onClick={handleBack} className="w-full justify-center text-gray-500">
+            <Button onClick={handleBack} className="w-full justify-center">
               ← Back
             </Button>
           </div>

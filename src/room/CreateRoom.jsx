@@ -5,13 +5,9 @@ import Button from '../components/Button'
 function Dots() {
   return (
     <div className="flex gap-1.5 items-center">
-      {[0, 150, 300].map(d => (
-        <span
-          key={d}
-          className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce"
-          style={{ animationDelay: `${d}ms` }}
-        />
-      ))}
+      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:0ms]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:150ms]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:300ms]" />
     </div>
   )
 }
@@ -42,7 +38,9 @@ export default function CreateRoom({ playerName, onGameStart, onBack }) {
               setPhase('joined')
               setTimeout(() => { if (alive) onGameStart(data.room_code) }, 700)
             }
-          } catch {}
+          } catch {
+            // Ignore malformed socket payloads.
+          }
         }
 
         ws.onerror = () => { if (alive) { setPhase('error'); setErrorMsg('Connection error. Try again.') } }
@@ -53,12 +51,12 @@ export default function CreateRoom({ playerName, onGameStart, onBack }) {
 
     init()
     return () => { alive = false; wsRef.current?.close() }
-  }, [])
+  }, [onGameStart, playerName])
 
   function handleBack() { wsRef.current?.close(); onBack() }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-rose-100 flex flex-col items-center justify-center relative overflow-hidden select-none">
+    <div className="min-h-screen bg-linear-to-br from-orange-50 via-white to-rose-100 flex flex-col items-center justify-center relative overflow-hidden select-none">
 
       {/* Background blobs */}
       <div className="absolute top-[-80px] left-[-80px] w-[400px] h-[400px] rounded-full bg-rose-300/25 blur-3xl pointer-events-none" />
@@ -114,7 +112,7 @@ export default function CreateRoom({ playerName, onGameStart, onBack }) {
               </div>
             )}
 
-            <Button onClick={handleBack} className="text-gray-500">
+            <Button onClick={handleBack}>
               ← Back
             </Button>
           </div>

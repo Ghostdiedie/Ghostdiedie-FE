@@ -121,13 +121,15 @@ function SegGauge({ pct, rtl = false }) {
         const segFill = Math.min(1, Math.max(0, filled - i)) * 100
         return (
           <div key={i} className="flex-1 h-[5px] bg-white/8 overflow-hidden relative">
-            <div
-              className="absolute inset-y-0 left-0 transition-[width] duration-300 ease-out"
-              style={{
-                width: `${segFill}%`,
-                background: ready ? '#a3e635' : 'rgba(255,255,255,0.38)',
-              }}
-            />
+            <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 5" preserveAspectRatio="none" aria-hidden="true">
+              <rect
+                x="0"
+                y="0"
+                width={segFill}
+                height="5"
+                fill={ready ? '#a3e635' : 'rgba(255,255,255,0.38)'}
+              />
+            </svg>
           </div>
         )
       })}
@@ -137,17 +139,12 @@ function SegGauge({ pct, rtl = false }) {
 
 function HpBar({ pct, rtl = false }) {
   const color = pct > 60 ? '#4ade80' : pct > 30 ? '#facc15' : '#f87171'
+  const x = rtl ? 100 - pct : 0
   return (
     <div className="relative h-2 bg-white/10 overflow-hidden">
-      <div
-        className="absolute inset-y-0 transition-[width] duration-100 ease-linear"
-        style={{
-          width: `${pct}%`,
-          background: color,
-          left: rtl ? 'auto' : 0,
-          right: rtl ? 0 : 'auto',
-        }}
-      />
+      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true">
+        <rect x={x} y="0" width={pct} height="8" fill={color} />
+      </svg>
     </div>
   )
 }
