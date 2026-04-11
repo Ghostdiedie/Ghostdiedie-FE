@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { Routes, Route, useNavigate } from 'react-router-dom'
 import { GameScene } from '../game/GameScene'
 import LandingPage from '../room/LandingPage'
 import LobbyPage from '../room/LobbyPage'
@@ -7,52 +7,41 @@ import JoinRoom from '../room/JoinRoom'
 import Countdown from '../room/Countdown'
 
 export default function AppFlow() {
-  const [page, setPage] = useState('landing')
-  const [playerName, setPlayerName] = useState('')
-  const goLobby = useCallback(() => setPage('lobby'), [])
-  const goCreate = useCallback(() => setPage('create'), [])
-  const goJoin = useCallback(() => setPage('join'), [])
-  const goCountdown = useCallback(() => setPage('countdown'), [])
-  const goGame = useCallback(() => setPage('game'), [])
+  const navigate = useNavigate()
 
-  if (page === 'landing') {
-    return <LandingPage onStart={goLobby} />
-  }
-
-  if (page === 'lobby') {
-    return (
-      <LobbyPage
-        playerName={playerName}
-        setPlayerName={setPlayerName}
-        onCreateGame={goCreate}
-        onJoinGame={goJoin}
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage onStart={() => navigate('/start')} />} />
+      <Route
+        path="/start"
+        element={
+          <LobbyPage
+            onCreateGame={() => navigate('/create')}
+            onJoinGame={() => navigate('/join')}
+            onBack={() => navigate('/')}
+          />
+        }
       />
-    )
-  }
-
-  if (page === 'create') {
-    return (
-      <CreateRoom
-        playerName={playerName}
-        onGameStart={goCountdown}
-        onBack={goLobby}
+      <Route
+        path="/create"
+        element={
+          <CreateRoom
+            onGameStart={() => navigate('/countdown')}
+            onBack={() => navigate('/start')}
+          />
+        }
       />
-    )
-  }
-
-  if (page === 'join') {
-    return (
-      <JoinRoom
-        playerName={playerName}
-        onJoined={goCountdown}
-        onBack={goLobby}
+      <Route
+        path="/join"
+        element={
+          <JoinRoom
+            onJoined={() => navigate('/countdown')}
+            onBack={() => navigate('/start')}
+          />
+        }
       />
-    )
-  }
-
-  if (page === 'countdown') {
-    return <Countdown onComplete={goGame} />
-  }
-
-  return <GameScene />
+      <Route path="/countdown" element={<Countdown onComplete={() => navigate('/game')} />} />
+      <Route path="/game" element={<GameScene />} />
+    </Routes>
+  )
 }

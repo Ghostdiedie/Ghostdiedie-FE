@@ -1,18 +1,20 @@
 import { useRef, useState } from 'react'
 import { joinRoom, createWebSocket } from '../api/client'
 import Button from '../components/Button'
+import backgroundImg from '../assets/background/background.webp'
+import logoImg from '../assets/background/logo.webp'
 
 function Dots() {
   return (
     <div className="flex gap-1.5 items-center">
-      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:0ms]" />
-      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:150ms]" />
-      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:300ms]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-white/50 animate-bounce [animation-delay:0ms]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-white/50 animate-bounce [animation-delay:150ms]" />
+      <span className="w-1.5 h-1.5 rounded-full bg-white/50 animate-bounce [animation-delay:300ms]" />
     </div>
   )
 }
 
-export default function JoinRoom({ playerName, onJoined, onBack }) {
+export default function JoinRoom({ onJoined, onBack }) {
   const [code, setCode] = useState('')
   const [phase, setPhase] = useState('idle') // idle | joining | connecting | error
   const [errorMsg, setErrorMsg] = useState('')
@@ -29,7 +31,7 @@ export default function JoinRoom({ playerName, onJoined, onBack }) {
     setPhase('joining')
 
     try {
-      await joinRoom(code, playerName)
+      await joinRoom(code)
       setPhase('connecting')
 
       const ws = createWebSocket(code)
@@ -56,25 +58,50 @@ export default function JoinRoom({ playerName, onJoined, onBack }) {
   const isLoading = phase === 'joining' || phase === 'connecting'
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-orange-50 via-white to-rose-100 flex flex-col items-center justify-center relative overflow-hidden select-none">
+    <div
+      className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden select-none"
+      style={{
+        backgroundImage: `url(${backgroundImg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      {/* Dark overlay */}
+      <div className="absolute inset-0 bg-black/50" />
 
-      {/* Background blobs */}
-      <div className="absolute top-[-80px] left-[-80px] w-[400px] h-[400px] rounded-full bg-rose-300/25 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-[-60px] right-[-60px] w-[340px] h-[340px] rounded-full bg-orange-300/25 blur-3xl pointer-events-none" />
+      {/* Back button */}
+      <button
+        onClick={handleBack}
+        className="absolute top-6 left-6 z-20 flex items-center gap-2 text-white/70 hover:text-white transition-colors duration-150 text-sm font-medium tracking-wide"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back
+      </button>
 
-      <div className="relative z-10 flex flex-col items-center bg-white/40 backdrop-blur-xl border border-white/70 rounded-[32px] px-12 py-12 shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] w-[360px]">
+      {/* Content: Logo left + Card right */}
+      <div className="relative z-10 flex items-center gap-12 px-8 max-w-[1040px] w-full">
 
-        <div className="font-black tracking-[0.08em] text-gray-900 text-2xl leading-none mb-1">
-          GHOST<span className="text-red-500">DIEDIE</span>
+        {/* Logo */}
+        <div className="shrink-0 flex-1 flex justify-center">
+          <img
+            src={logoImg}
+            alt="Ghost Die Die"
+            className="w-[clamp(260px,34vw,500px)] drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)]"
+          />
         </div>
-        <div className="w-8 h-px bg-gray-300 mb-8" />
 
-        <p className="text-xs font-medium tracking-[0.2em] text-gray-400 uppercase mb-3">
+        {/* Card */}
+        <div className="flex-1 flex justify-center">
+        <div className="flex flex-col items-center bg-black/60 backdrop-blur-xl border border-white/20 rounded-[28px] px-10 py-10 shadow-[0_8px_40px_rgba(0,0,0,0.5)] w-[360px]">
+
+        <p className="text-sm font-semibold tracking-[0.15em] text-gray-200 uppercase mb-4">
           Enter Room Code
         </p>
 
         {/* Code input */}
-        <div className="w-full bg-white/60 backdrop-blur-md border border-white/80 rounded-[20px] shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] flex items-center justify-center py-4 mb-2">
+        <div className="w-full bg-white/20 border border-white/40 rounded-[20px] flex items-center justify-center py-4 mb-2">
           <input
             type="text"
             value={code}
@@ -83,12 +110,12 @@ export default function JoinRoom({ playerName, onJoined, onBack }) {
             maxLength={4}
             disabled={isLoading}
             onKeyDown={e => e.key === 'Enter' && handleJoin()}
-            className="bg-transparent font-black text-4xl tracking-[0.4em] text-gray-900 text-center placeholder-gray-300 focus:outline-none w-full disabled:opacity-50"
+            className="bg-transparent font-black text-4xl tracking-[0.4em] text-white text-center placeholder-white/30 focus:outline-none w-full disabled:opacity-50"
           />
         </div>
 
         {errorMsg && (
-          <p className="text-xs text-red-500 mb-4 mt-1">{errorMsg}</p>
+          <p className="text-xs text-red-400 mb-4 mt-1">{errorMsg}</p>
         )}
 
         <div className="h-3 mb-6" />
@@ -106,10 +133,12 @@ export default function JoinRoom({ playerName, onJoined, onBack }) {
               Join
             </Button>
             <Button onClick={handleBack} className="w-full justify-center">
-              ← Back
+              Back
             </Button>
           </div>
         )}
+        </div>
+        </div>
       </div>
     </div>
   )

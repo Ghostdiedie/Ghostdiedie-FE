@@ -1,54 +1,56 @@
 import Button from '../components/Button'
+import backgroundImg from '../assets/background/background.webp'
+import logoImg from '../assets/background/logo.webp'
 
-export default function LobbyPage({ playerName, setPlayerName, onCreateGame, onJoinGame }) {
-  const ready = playerName.trim().length > 0
-
+export default function LobbyPage({ onCreateGame, onJoinGame, onBack }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-rose-100 flex flex-col items-center justify-center relative overflow-hidden select-none">
+    <div
+      className="min-h-screen flex items-center justify-center relative overflow-hidden select-none"
+      style={{
+        backgroundImage: `url(${backgroundImg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      {/* Dark overlay */}
+      <div className="absolute inset-0 bg-black/50" />
 
-      {/* Background blobs */}
-      <div className="absolute top-[-80px] left-[-80px] w-[400px] h-[400px] rounded-full bg-rose-300/25 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-[-60px] right-[-60px] w-[340px] h-[340px] rounded-full bg-orange-300/25 blur-3xl pointer-events-none" />
+      {/* Back button */}
+      <button
+        onClick={onBack}
+        className="absolute top-6 left-6 z-20 flex items-center gap-2 text-white/70 hover:text-white transition-colors duration-150 text-sm font-medium tracking-wide"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back
+      </button>
 
-      {/* Glass card */}
-      <div className="relative z-10 flex flex-col items-center bg-white/40 backdrop-blur-xl border border-white/70 rounded-[32px] px-12 py-12 shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.9)] w-[360px]">
+      {/* Content: Logo left + Buttons right */}
+      <div className="relative z-10 flex items-center gap-12 px-8 max-w-[1040px] w-full">
 
         {/* Logo */}
-        <div className="font-black tracking-[0.08em] text-gray-900 text-2xl leading-none mb-1">
-          GHOST<span className="text-red-500">DIEDIE</span>
-        </div>
-        <div className="w-8 h-px bg-gray-300 mb-8" />
-
-        {/* Name input */}
-        <div className="w-full mb-8">
-          <label className="block text-xs font-medium tracking-[0.15em] text-gray-400 uppercase mb-2">
-            Your Name
-          </label>
-          <input
-            type="text"
-            value={playerName}
-            onChange={e => setPlayerName(e.target.value)}
-            placeholder="Enter name..."
-            maxLength={20}
-            className="w-full h-11 rounded-[14px] bg-white/60 backdrop-blur-md border border-white/80 px-4 text-gray-900 font-medium placeholder-gray-300 focus:outline-none focus:border-red-300 focus:bg-white/80 shadow-[inset_0_1px_3px_rgba(0,0,0,0.06)] transition-[border-color,background-color] duration-150"
+        <div className="animate-slide-to-left shrink-0 flex-1 flex justify-center">
+          <img
+            src={logoImg}
+            alt="Ghost Die Die"
+            className="w-[clamp(260px,34vw,500px)] drop-shadow-[0_4px_24px_rgba(0,0,0,0.6)]"
           />
         </div>
 
-        {/* Buttons */}
-        <div className="flex flex-col gap-3 w-full">
-          <Button onClick={onCreateGame} disabled={!ready} className="w-full justify-center">
-            Create Game
-          </Button>
-          <Button onClick={onJoinGame} disabled={!ready} className="w-full justify-center">
-            Join Game
-          </Button>
+        {/* Button panel */}
+        <div className="animate-fade-in-right flex-1 flex justify-center">
+          <div className="flex flex-col items-center bg-black/60 backdrop-blur-xl border border-white/20 rounded-[28px] px-10 py-10 shadow-[0_8px_40px_rgba(0,0,0,0.5)] w-[360px]">
+            <div className="flex flex-col gap-3 w-full">
+              <Button onClick={onCreateGame} className="w-full justify-center">
+                Create Game
+              </Button>
+              <Button onClick={onJoinGame} className="w-full justify-center">
+                Join Game
+              </Button>
+            </div>
+          </div>
         </div>
-
-        {!ready && (
-          <p className="mt-5 text-xs text-gray-400 tracking-wide">
-            Enter your name to continue
-          </p>
-        )}
       </div>
     </div>
   )
