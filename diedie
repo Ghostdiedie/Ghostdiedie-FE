@@ -154,6 +154,31 @@ kill_listener_on_port() {
   done <<< "$pids"
 }
 
+kill_matching_processes() {
+  local pattern="$1"
+  local pids
+
+  pids="$(pgrep -f "$pattern" 2>/dev/null || true)"
+  if [[ -z "$pids" ]]; then
+    return 0
+  fi
+
+  while IFS= read -r pid; do
+    [[ -z "$pid" ]] && continue
+    [[ "$pid" == "$$" ]] && continue
+    kill "$pid" >/dev/null 2>&1 || true
+    for _ in {1..20}; do
+      if ! kill -0 "$pid" >/dev/null 2>&1; then
+        break
+      fi
+      sleep 0.1
+    done
+    if kill -0 "$pid" >/dev/null 2>&1; then
+      kill -9 "$pid" >/dev/null 2>&1 || true
+    fi
+  done <<< "$pids"
+}
+
 port_has_listener() {
   local port="$1"
   lsof -tiTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1
@@ -195,6 +220,10 @@ if [[ ! -d "$FE_DIR/node_modules" ]]; then
 fi
 
 cleanup() {
+  if [[ -n "${NPM_PID:-}" ]]; then
+    kill "$NPM_PID" >/dev/null 2>&1 || true
+    wait "$NPM_PID" 2>/dev/null || true
+  fi
   if [[ -n "${CV_PID:-}" ]]; then
     kill "$CV_PID" >/dev/null 2>&1 || true
     wait "$CV_PID" 2>/dev/null || true
@@ -202,6 +231,8 @@ cleanup() {
 }
 
 trap cleanup EXIT INT TERM
+
+kill_matching_processes "$CV_DIR/main.py"
 
 if port_has_listener "$CV_PORT"; then
   echo "[diedie] stopping existing local CV bridge on ws://$CV_HOST:$CV_PORT"
@@ -242,4 +273,7 @@ fi
 
 echo "[diedie] starting frontend dev server on http://127.0.0.1:$FE_PORT"
 cd "$FE_DIR"
-VITE_CV_BRIDGE_URL="ws://$CV_HOST:$ACTIVE_CV_PORT" npm run dev
+VITE_CV_BRIDGE_URL="ws://$CV_HOST:$ACTIVE_CV_PORT" npm run vite:dev &
+NPM_PID=$!
+
+wait $NPM_PID

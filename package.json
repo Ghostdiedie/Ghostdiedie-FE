@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "diedie": "./diedie",
-    "dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
+    "dev": "./diedie",
+    "vite:dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
