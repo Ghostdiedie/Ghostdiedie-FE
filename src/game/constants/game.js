@@ -11,7 +11,7 @@ export const STAND_ROW_HEIGHT = 1.2
 export const STAND_ROW_DEPTH = 1.5
 
 // ─── Player movement — tweak these ───────────────────
-export const MOVE_SPEED          = 0.03  // units per frame (WASD) — human jog speed
+export const MOVE_SPEED          = 0.05  // units per frame — responsive Tekken-like movement
 export const JUMP_FORCE          = 0.08  // initial upward velocity
 export const GRAVITY             = 0.004 // downward acceleration per frame
 export const GROUND_Y            = 0     // y-level of the ground
