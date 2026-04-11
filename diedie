@@ -14,6 +14,8 @@ CV_DIR="$PROJECT_DIR/Ghostdiedie-CV"
 CV_HOST="${CV_BRIDGE_HOST:-127.0.0.1}"
 CV_PORT="${CV_BRIDGE_PORT:-8765}"
 ACTIVE_CV_PORT="$CV_PORT"
+FE_HOST="${FE_DEV_HOST:-127.0.0.1}"
+FE_PORT="${FE_DEV_PORT:-5173}"
 
 if [[ ! -d "$CV_DIR" ]]; then
   echo "[diedie] expected Ghostdiedie-CV next to Ghostdiedie-FE under $PROJECT_DIR" >&2
@@ -129,6 +131,38 @@ sys.exit(1)
 PY
 }
 
+probe_existing_fe_server() {
+  FE_HOST="$FE_HOST" FE_PORT="$FE_PORT" "$SYSTEM_PYTHON" - <<'PY' >/dev/null 2>&1
+import os
+import urllib.request
+
+host = os.environ["FE_HOST"]
+port = int(os.environ["FE_PORT"])
+url = f"http://{host}:{port}"
+
+with urllib.request.urlopen(url, timeout=1) as response:
+    body = response.read().decode("utf-8", "ignore")
+    if "/@vite/client" not in body and '<div id="root"></div>' not in body:
+        raise RuntimeError("not the frontend dev server")
+PY
+}
+
+can_bind_fe_port() {
+  FE_HOST="$FE_HOST" FE_PORT="$FE_PORT" "$SYSTEM_PYTHON" - <<'PY' >/dev/null 2>&1
+import os
+import socket
+
+host = os.environ["FE_HOST"]
+port = int(os.environ["FE_PORT"])
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    sock.bind((host, port))
+finally:
+    sock.close()
+PY
+}
+
 setup_cv_venv
 
 if ! validate_cv_runtime; then
@@ -186,6 +220,16 @@ else
   fi
 fi
 
-echo "[diedie] starting frontend dev server"
+if probe_existing_fe_server; then
+  echo "[diedie] reusing existing frontend dev server on http://$FE_HOST:$FE_PORT"
+  exit 0
+fi
+
+if ! can_bind_fe_port; then
+  echo "[diedie] port $FE_PORT is already in use by a non-Ghostdiedie frontend process" >&2
+  exit 1
+fi
+
+echo "[diedie] starting frontend dev server on http://$FE_HOST:$FE_PORT"
 cd "$FE_DIR"
 VITE_CV_BRIDGE_URL="ws://$CV_HOST:$ACTIVE_CV_PORT" npm run dev
