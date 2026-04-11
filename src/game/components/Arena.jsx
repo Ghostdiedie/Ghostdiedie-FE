@@ -43,20 +43,32 @@ function OctagonMat() {
         <meshStandardMaterial color={C.mat} roughness={0.92} />
       </mesh>
 
-      {/* Yellow boundary ring */}
+      {/* White outer ring on canvas (like real MMA mats) */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.007, 0]}>
+        <ringGeometry args={[ARENA_RADIUS - 0.06, ARENA_RADIUS + 0.06, 64]} />
+        <meshStandardMaterial color="#e8e0d0" roughness={0.5} />
+      </mesh>
+
+      {/* Yellow boundary ring (just inside white) */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.009, 0]}>
-        <ringGeometry args={[ARENA_RADIUS - 0.28, ARENA_RADIUS, 64]} />
+        <ringGeometry args={[ARENA_RADIUS - 0.32, ARENA_RADIUS - 0.08, 64]} />
         <meshStandardMaterial color={C.yellow} roughness={0.3} />
+      </mesh>
+
+      {/* White inner ring (inner boundary marker) */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.009, 0]}>
+        <ringGeometry args={[5.5, 5.7, 48]} />
+        <meshStandardMaterial color="#d0c8b8" roughness={0.5} />
       </mesh>
 
       {/* Centre cross — player alignment mark */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.009, 0]}>
-        <planeGeometry args={[8, 0.1]} />
-        <meshStandardMaterial color={C.yellowDim} roughness={0.4} />
+        <planeGeometry args={[8, 0.12]} />
+        <meshStandardMaterial color="#c8c0b0" roughness={0.5} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.009, 0]}>
-        <planeGeometry args={[0.1, 8]} />
-        <meshStandardMaterial color={C.yellowDim} roughness={0.4} />
+        <planeGeometry args={[0.12, 8]} />
+        <meshStandardMaterial color="#c8c0b0" roughness={0.5} />
       </mesh>
     </group>
   )
@@ -64,7 +76,10 @@ function OctagonMat() {
 
 // ─── MMA-style octagonal cage ─────────────────────────────────────────────────
 function OctagonCage() {
-  const BARS = 8   // vertical bars per panel
+  const BARS = 11   // vertical bars per panel — denser, more realistic
+
+  // Alternating red/blue corner pads (MMA standard)
+  const padColors = ['#8b1a1a', '#1a3a8b', '#8b1a1a', '#1a3a8b', '#8b1a1a', '#1a3a8b', '#8b1a1a', '#1a3a8b']
 
   return (
     <group>
@@ -83,46 +98,52 @@ function OctagonCage() {
                 key={j}
                 position={[(j / (BARS - 1) - 0.5) * PANEL_W, CAGE_H / 2, 0]}
               >
-                <boxGeometry args={[0.07, CAGE_H, 0.07]} />
-                <meshStandardMaterial color={C.metal} metalness={0.75} roughness={0.35} />
+                <boxGeometry args={[0.055, CAGE_H, 0.055]} />
+                <meshStandardMaterial color="#282830" metalness={0.8} roughness={0.3} />
               </mesh>
             ))}
 
-            {/* Horizontal rails */}
-            {[0.32, CAGE_H * 0.52, CAGE_H - 0.22].map((y, j) => (
+            {/* Horizontal rails — 4 rails for more authentic look */}
+            {[0.3, CAGE_H * 0.36, CAGE_H * 0.65, CAGE_H - 0.2].map((y, j) => (
               <mesh key={j} position={[0, y, 0]}>
-                <boxGeometry args={[PANEL_W + 0.05, 0.08, 0.08]} />
-                <meshStandardMaterial color={C.metalLight} metalness={0.6} roughness={0.5} />
+                <boxGeometry args={[PANEL_W + 0.05, 0.07, 0.07]} />
+                <meshStandardMaterial color={C.metalLight} metalness={0.65} roughness={0.45} />
               </mesh>
             ))}
 
             {/* Top cap rail */}
-            <mesh position={[0, CAGE_H + 0.06, 0]}>
-              <boxGeometry args={[PANEL_W + 0.1, 0.14, 0.14]} />
-              <meshStandardMaterial color={C.metal} metalness={0.75} roughness={0.4} />
+            <mesh position={[0, CAGE_H + 0.07, 0]}>
+              <boxGeometry args={[PANEL_W + 0.1, 0.16, 0.16]} />
+              <meshStandardMaterial color={C.metal} metalness={0.78} roughness={0.35} />
             </mesh>
 
             {/* Bottom base rail */}
-            <mesh position={[0, 0.06, 0]}>
-              <boxGeometry args={[PANEL_W + 0.08, 0.12, 0.12]} />
-              <meshStandardMaterial color={C.metal} metalness={0.75} roughness={0.4} />
+            <mesh position={[0, 0.07, 0]}>
+              <boxGeometry args={[PANEL_W + 0.08, 0.14, 0.14]} />
+              <meshStandardMaterial color={C.metal} metalness={0.78} roughness={0.35} />
             </mesh>
           </group>
         )
       })}
 
-      {/* 8 corner posts (at octagon vertices) */}
+      {/* 8 corner posts + coloured foam pads */}
       {Array.from({ length: 8 }, (_, i) => {
         const angle = (i / 8) * Math.PI * 2
+        const px = Math.sin(angle) * VERTEX_R
+        const pz = Math.cos(angle) * VERTEX_R
         return (
-          <mesh
-            key={i}
-            position={[Math.sin(angle) * VERTEX_R, CAGE_H / 2, Math.cos(angle) * VERTEX_R]}
-            castShadow
-          >
-            <boxGeometry args={[0.24, CAGE_H + 0.35, 0.24]} />
-            <meshStandardMaterial color="#0e0e10" metalness={0.85} roughness={0.25} />
-          </mesh>
+          <group key={i} position={[px, 0, pz]}>
+            {/* Steel post */}
+            <mesh position={[0, CAGE_H / 2, 0]} castShadow>
+              <boxGeometry args={[0.22, CAGE_H + 0.35, 0.22]} />
+              <meshStandardMaterial color="#0c0c0e" metalness={0.88} roughness={0.22} />
+            </mesh>
+            {/* Foam corner pad (lower half of cage) */}
+            <mesh position={[0, CAGE_H * 0.28, 0]}>
+              <boxGeometry args={[0.32, CAGE_H * 0.52, 0.32]} />
+              <meshStandardMaterial color={padColors[i]} roughness={0.9} metalness={0} />
+            </mesh>
+          </group>
         )
       })}
     </group>
@@ -320,43 +341,64 @@ function Columns() {
 
 // ─── Crowd silhouettes ────────────────────────────────────────────────────────
 function Crowd() {
-  const COUNT = 140
-  const ref   = useRef()
-  const dummy = useMemo(() => new THREE.Object3D(), [])
+  const COUNT   = 140
+  const bodyRef = useRef()
+  const headRef = useRef()
+  const dummy   = useMemo(() => new THREE.Object3D(), [])
 
   const figures = useMemo(() => (
     Array.from({ length: COUNT }, (_, i) => {
       const angle  = (i / COUNT) * Math.PI * 2 + (pseudoRandom(i * 7.3) - 0.5) * 0.18
       const radius = VERTEX_R + 2.2 + pseudoRandom(i * 13.7) * 5.0
-      const h      = 0.85 + pseudoRandom(i * 5.1) * 0.7
-      const w      = 0.3  + pseudoRandom(i * 3.9) * 0.12
+      const h      = 0.9  + pseudoRandom(i * 5.1) * 0.65
+      const w      = 0.32 + pseudoRandom(i * 3.9) * 0.12
+      const headR  = w * 0.42
       return {
         x: Math.sin(angle) * radius,
         z: Math.cos(angle) * radius,
-        y: h / 2,
-        rotY: angle + Math.PI,
+        bodyY: h / 2,
+        headY: h + headR * 0.9,
+        rotY:  angle + Math.PI,
         sx: w, sy: h, sz: w * 0.48,
+        headR,
       }
     })
   ), [])
 
   useEffect(() => {
-    if (!ref.current) return
+    if (!bodyRef.current || !headRef.current) return
+
     figures.forEach((f, i) => {
-      dummy.position.set(f.x, f.y, f.z)
+      // Body
+      dummy.position.set(f.x, f.bodyY, f.z)
       dummy.rotation.set(0, f.rotY, 0)
       dummy.scale.set(f.sx, f.sy, f.sz)
       dummy.updateMatrix()
-      ref.current.setMatrixAt(i, dummy.matrix)
+      bodyRef.current.setMatrixAt(i, dummy.matrix)
+
+      // Head
+      dummy.position.set(f.x, f.headY, f.z)
+      dummy.rotation.set(0, f.rotY, 0)
+      dummy.scale.set(f.headR, f.headR, f.headR)
+      dummy.updateMatrix()
+      headRef.current.setMatrixAt(i, dummy.matrix)
     })
-    ref.current.instanceMatrix.needsUpdate = true
+
+    bodyRef.current.instanceMatrix.needsUpdate = true
+    headRef.current.instanceMatrix.needsUpdate = true
   }, [figures, dummy])
 
   return (
-    <instancedMesh ref={ref} args={[null, null, COUNT]}>
-      <boxGeometry args={[1, 1, 1]} />
-      <meshStandardMaterial color={C.crowd} roughness={1} />
-    </instancedMesh>
+    <>
+      <instancedMesh ref={bodyRef} args={[null, null, COUNT]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color={C.crowd} roughness={1} />
+      </instancedMesh>
+      <instancedMesh ref={headRef} args={[null, null, COUNT]}>
+        <sphereGeometry args={[1, 7, 7]} />
+        <meshStandardMaterial color="#1e1c1a" roughness={1} />
+      </instancedMesh>
+    </>
   )
 }
 

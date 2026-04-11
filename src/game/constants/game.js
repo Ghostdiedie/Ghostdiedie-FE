@@ -11,8 +11,8 @@ export const STAND_ROW_HEIGHT = 1.2
 export const STAND_ROW_DEPTH = 1.5
 
 // ─── Player movement — tweak these ───────────────────
-export const MOVE_SPEED          = 0.10   // units per frame (WASD)
-export const JUMP_FORCE          = 0.18   // initial upward velocity
+export const MOVE_SPEED          = 0.055  // units per frame (WASD) — human jog speed
+export const JUMP_FORCE          = 0.15   // initial upward velocity
 export const GRAVITY             = 0.008  // downward acceleration per frame
 export const GROUND_Y            = 0      // y-level of the ground
 
@@ -23,10 +23,10 @@ export const ARENA_BOUNDARY_MARGIN = 1.5  // how far from arena edge fighters ar
 export const SEPARATION_MAX_PUSH   = 0.06
 
 // Camera — third-person behind-player
-export const CAM_BACK_DIST = 5      // how far behind the player (world units)
-export const CAM_HEIGHT = 3.5       // how high above the player
+export const CAM_BACK_DIST  = 6.5   // how far behind the player (world units)
+export const CAM_HEIGHT     = 4.2   // how high above the player
 export const CAM_LOOK_AHEAD = 2     // how far ahead (toward opponent) the lookAt is offset
-export const CAM_LERP_SPEED = 0.1   // position lerp speed (higher = snappier)
+export const CAM_LERP_SPEED = 0.07  // position lerp speed (lower = smoother tracking)
 
 // Opponent position (static placeholder)
 export const OPPONENT_POS = [0, 0, -5]

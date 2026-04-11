@@ -149,7 +149,11 @@ function Scene({ combat }) {
       />
 
       {/* Camera follows player from behind */}
-      <FollowCamera targetPosition={movement.position} playerFacing={movement.facing} />
+      <FollowCamera
+        targetPosition={movement.position}
+        playerFacing={movement.facing}
+        opponentPosition={opponentAI.position}
+      />
     </>
   )
 }
