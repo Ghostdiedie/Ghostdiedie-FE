@@ -6,10 +6,12 @@ import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { CHARACTER_MODEL_PATHS } from '../constants/game'
 import { HIT_KNOCKBACK, HIT_ROCK_ANGLE } from '../constants/combat'
 
-// Face plane dimensions in world units (relative to character scale)
-const FACE_PLANE_SIZE = 0.38
-// Offset from head bone: forward (Z), up (Y)
-const FACE_OFFSET = new THREE.Vector3(0, 0.08, 0.14)
+// Head bone local space uses Blender cm units (armature scale = 0.01).
+// Combined effective world scale: armature(0.01) × PLAYER_SCALE(1.5) = 0.015
+//   → 1 cm here = 0.015 world units
+// FacePlate position from GLB: [1.57, 14.08, 18.29] cm (confirmed by parsing the binary)
+const FACE_PLANE_RADIUS = 13     // 13 cm → ~0.20 world-unit radius
+const FACE_OFFSET = new THREE.Vector3(0, 14, 18.3)  // cm in head bone local space
 
 const CLIP_ALIASES = {
   idle: ['idle'],
@@ -172,19 +174,21 @@ export function FighterBody({
     const texture = new THREE.TextureLoader().load(faceImageUrl)
     texture.colorSpace = THREE.SRGBColorSpace
 
-    const geo = new THREE.CircleGeometry(FACE_PLANE_SIZE, 32)
+    const geo = new THREE.CircleGeometry(FACE_PLANE_RADIUS, 32)
     const mat = new THREE.MeshStandardMaterial({
       map: texture,
       transparent: true,
       depthWrite: false,
-      side: THREE.FrontSide,
-      roughness: 0.8,
+      side: THREE.DoubleSide,  // visible from both sides regardless of bone axis orientation
+      roughness: 0.7,
       metalness: 0,
     })
     const plane = new THREE.Mesh(geo, mat)
     plane.name = '__facePlane__'
     plane.position.copy(FACE_OFFSET)
-    // The head bone faces +Z in local space; no extra rotation needed
+    // Head bone local +Y → world +Z (character forward) after armature +90°X rotation.
+    // CircleGeometry normal defaults to +Z (bone local); rotate -90°X so normal → +Y (bone local) → world forward.
+    plane.rotation.x = -Math.PI / 2
     headBone.add(plane)
     console.log('[FighterBody] attached face plane', { modelPath, bone: headBone.name, faceLength: faceImageUrl.length })
 
