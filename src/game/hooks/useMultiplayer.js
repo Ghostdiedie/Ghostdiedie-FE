@@ -24,6 +24,7 @@ function makeFighterState() {
     cooldownTimer: 0,
     hitStunTimer: 0,
     isHit: false,
+    bufferedAttack: null, // { name, at } — queued while attacking/on cooldown
   }
 }
 
@@ -223,25 +224,38 @@ export function useMultiplayer(ws, playerMovement) {
     // Tick local animation timers
     tickFighter(playerState.current, dt)
     tickFighter(opponentState.current, dt)
+
+    // Flush buffered player attack as soon as fighter is free
+    const pf = playerState.current
+    if (!pf.attackName && pf.cooldownTimer <= 0 && !pf.isHit && pf.bufferedAttack) {
+      const buf = pf.bufferedAttack
+      pf.bufferedAttack = null
+      if (Date.now() - buf.at < 600) {
+        playerAttack(buf.name, true)
+      }
+    }
   })
 
   // ── Attack methods ──
-  const playerAttack = useCallback((attackName) => {
+  const playerAttack = useCallback((attackName, _fromBuffer = false) => {
     const f = playerState.current
     const attack = ATTACKS[attackName]
-    if (!attack || f.attackName || f.cooldownTimer > 0 || f.isHit) return
+    if (!attack || f.isHit) return
 
-    // Local animation immediately
-    f.attackName = attack.name
-    f.attackTimer = attack.duration
-    f.attackDuration = attack.duration
+    if (!f.attackName && f.cooldownTimer <= 0) {
+      // Execute immediately
+      f.attackName = attack.name
+      f.attackTimer = attack.duration
+      f.attackDuration = attack.duration
+      f.bufferedAttack = null
 
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      console.log('[Multiplayer] send player_action', attackName)
-      // Server combat calculation
-      ws.send(JSON.stringify({ type: 'player_action', action: toServerAction(attackName) }))
-      // Relay animation to opponent
-      ws.send(JSON.stringify({ type: 'attack_anim', action: attackName }))
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'player_action', action: toServerAction(attackName) }))
+        ws.send(JSON.stringify({ type: 'attack_anim', action: attackName }))
+      }
+    } else if (!_fromBuffer) {
+      // Buffer the latest attack — fires as soon as current attack + cooldown ends
+      f.bufferedAttack = { name: attackName, at: Date.now() }
     }
   }, [ws])
 
