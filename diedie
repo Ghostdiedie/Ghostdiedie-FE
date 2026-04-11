@@ -22,23 +22,57 @@ if ! command -v npm >/dev/null 2>&1; then
   exit 1
 fi
 
-SYSTEM_PYTHON="$(command -v python3 || true)"
+find_python() {
+  if command -v python3.11 >/dev/null 2>&1; then
+    command -v python3.11
+    return
+  fi
+  if command -v python3.10 >/dev/null 2>&1; then
+    command -v python3.10
+    return
+  fi
+  command -v python3 || true
+}
+
+SYSTEM_PYTHON="$(find_python)"
 if [[ -z "$SYSTEM_PYTHON" ]]; then
   echo "[diedie] python3 not found" >&2
   exit 1
 fi
 
-if [[ ! -d "$CV_DIR/.venv" ]]; then
-  echo "[diedie] creating CV virtualenv"
-  "$SYSTEM_PYTHON" -m venv "$CV_DIR/.venv"
+setup_cv_venv() {
+  if [[ ! -d "$CV_DIR/.venv" ]]; then
+    echo "[diedie] creating CV virtualenv with $SYSTEM_PYTHON"
+    "$SYSTEM_PYTHON" -m venv "$CV_DIR/.venv"
+  fi
+
+  CV_PYTHON="$CV_DIR/.venv/bin/python"
+  CV_PIP="$CV_DIR/.venv/bin/pip"
+
+  if ! "$CV_PYTHON" -c "import cv2, mediapipe, websockets, requests, dotenv, numpy" >/dev/null 2>&1; then
+    echo "[diedie] installing CV dependencies"
+    "$CV_PIP" install -r "$CV_DIR/requirements.txt"
+  fi
+}
+
+validate_cv_runtime() {
+  "$CV_PYTHON" - <<'PY' >/dev/null 2>&1
+import mediapipe as mp
+assert hasattr(mp, "solutions")
+PY
+}
+
+setup_cv_venv
+
+if ! validate_cv_runtime; then
+  echo "[diedie] current CV venv is incompatible; rebuilding with $SYSTEM_PYTHON"
+  rm -rf "$CV_DIR/.venv"
+  setup_cv_venv
 fi
 
-CV_PYTHON="$CV_DIR/.venv/bin/python"
-CV_PIP="$CV_DIR/.venv/bin/pip"
-
-if ! "$CV_PYTHON" -c "import cv2, mediapipe, websockets, requests, dotenv, numpy" >/dev/null 2>&1; then
-  echo "[diedie] installing CV dependencies"
-  "$CV_PIP" install -r "$CV_DIR/requirements.txt"
+if ! validate_cv_runtime; then
+  echo "[diedie] mediapipe runtime is still incompatible. Use Python 3.11 on this machine." >&2
+  exit 1
 fi
 
 if [[ ! -d "$FE_DIR/node_modules" ]]; then
