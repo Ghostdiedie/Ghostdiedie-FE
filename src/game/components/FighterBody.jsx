@@ -19,9 +19,14 @@ const CLIP_ALIASES = {
   kick: ['kick', 'kicking'],
   left_punch: ['left_punch', 'left-punch', 'left punch', 'leftpunch'],
   right_punch: ['right_punch', 'right-punch', 'right punch', 'rightpunch'],
+  head_attack: ['head_attack', 'headattack', 'head attack'],
+  win: ['win', 'victory', 'winning'],
+  lose: ['lose', 'defeat', 'losing', 'loss'],
 }
 
-const ONESHOT_CLIPS = new Set(['jump', 'hit', 'kick', 'left_punch', 'right_punch'])
+const ONESHOT_CLIPS = new Set(['jump', 'hit', 'kick', 'left_punch', 'right_punch', 'head_attack'])
+// Game-end clips override everything and loop until the scene unmounts
+const GAME_END_CLIPS = new Set(['win', 'lose'])
 // These clips must start instantly, no blending delay
 const INSTANT_CLIPS = new Set(['jump', 'hit'])
 const FADE_DURATION = 0.12
@@ -43,7 +48,11 @@ function resolveClipName(animations, logicalName) {
   return null
 }
 
-function pickAnimation(fighterState, isMoving, isGrounded) {
+function pickAnimation(fighterState, isMoving, isGrounded, gameResult) {
+  // Game-end state overrides everything
+  if (gameResult === 'win') return 'win'
+  if (gameResult === 'lose') return 'lose'
+
   const fighter = fighterState.current
 
   if (fighter.isHit) return 'hit'
@@ -91,12 +100,14 @@ export function FighterBody({
   facingTarget,
   positionRef,
   faceImageUrl,
+  gameResult = null, // null | 'win' | 'lose'
 }) {
   const facingGroupRef = useRef()
   const bodyGroupRef = useRef()
   const activeActionRef = useRef(null)
   const warnedMissingClipsRef = useRef(false)
   const defaultGroundedRef = useRef(true)
+  const gameResultRef = useRef(gameResult)
 
   const { scene, animations } = useGLTF(modelPath)
   const clonedScene = useMemo(() => clone(scene), [scene])
@@ -119,13 +130,24 @@ export function FighterBody({
     kick: resolveClipName(sanitizedAnimations, 'kick'),
     left_punch: resolveClipName(sanitizedAnimations, 'left_punch'),
     right_punch: resolveClipName(sanitizedAnimations, 'right_punch'),
+    head_attack: resolveClipName(sanitizedAnimations, 'head_attack'),
+    win: resolveClipName(sanitizedAnimations, 'win'),
+    lose: resolveClipName(sanitizedAnimations, 'lose'),
   }), [sanitizedAnimations])
+
+  // Keep gameResult ref in sync with prop for useFrame access
+  useEffect(() => { gameResultRef.current = gameResult }, [gameResult])
 
   useEffect(() => {
     clonedScene.traverse((node) => {
       if (node.isMesh) {
         node.castShadow = true
         node.receiveShadow = false
+        // Hide any built-in face plate mesh from the GLB — the runtime plane handles face rendering
+        const lower = node.name.toLowerCase().replace(/[\s_-]/g, '')
+        if (lower === 'faceplate' || lower === 'facemesh' || lower === 'faceplane') {
+          node.visible = false
+        }
       }
     })
   }, [clonedScene])
@@ -224,13 +246,32 @@ export function FighterBody({
       )
     }
 
-    const logicalClip = pickAnimation(fighterState, isMoving, grounded)
+    const logicalClip = pickAnimation(fighterState, isMoving, grounded, gameResultRef.current)
     const nextClipName = clipNames[logicalClip] ?? clipNames.idle ?? names[0]
     if (!nextClipName) return
 
-    // Same animation already playing — only skip if it's a looping clip.
-    // One-shots that re-trigger (e.g. jump again) need to reset.
     const isSameClip = activeActionRef.current === nextClipName
+
+    // Game-end clips: once triggered, loop forever — never interrupt them
+    if (GAME_END_CLIPS.has(logicalClip)) {
+      if (isSameClip) return // already playing win/lose
+      // Override whatever was playing
+      const previousAction = activeActionRef.current ? actions[activeActionRef.current] : null
+      if (previousAction) previousAction.fadeOut(FADE_DURATION)
+      const nextAction = actions[nextClipName]
+      if (!nextAction) return
+      nextAction.reset().setEffectiveTimeScale(1).setEffectiveWeight(1)
+      nextAction.fadeIn(FADE_DURATION)
+      nextAction.setLoop(THREE.LoopRepeat, Infinity)
+      nextAction.play()
+      activeActionRef.current = nextClipName
+      return
+    }
+
+    // Block normal animations once a game-end clip is active
+    if (activeActionRef.current && GAME_END_CLIPS.has(
+      Object.entries(clipNames).find(([, v]) => v === activeActionRef.current)?.[0] ?? ''
+    )) return
 
     // Update walk direction every frame (reverse when moving backward)
     if (isSameClip && logicalClip === 'walk') {

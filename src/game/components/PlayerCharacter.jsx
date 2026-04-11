@@ -11,7 +11,7 @@ import { FighterBody } from './FighterBody'
  *   fighterState  — ref from useCombat (attackName, isHit, etc.)
  *   opponentPos   — ref<[x,y,z]> opponent's current world position
  */
-export function PlayerCharacter({ movement, fighterState, opponentPos, faceImageUrl, characterKey = 'blue' }) {
+export function PlayerCharacter({ movement, fighterState, opponentPos, faceImageUrl, characterKey = 'blue', gameResult = null }) {
   const groupRef = useRef()
 
   useFrame(() => {
@@ -32,6 +32,7 @@ export function PlayerCharacter({ movement, fighterState, opponentPos, faceImage
       facingTarget={opponentPos}
       positionRef={movement.position}
       faceImageUrl={faceImageUrl}
+      gameResult={gameResult}
     />
   )
 }

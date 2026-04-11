@@ -353,6 +353,8 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
               playerCharacterKey={playerCharacterKey}
               onHudBindings={setHudBindings}
               controls={cvControls}
+              playerResult={gameEndInfo ? (gameEndInfo.winnerIndex === playerIndex ? 'win' : 'lose') : null}
+              opponentResult={gameEndInfo ? (gameEndInfo.winnerIndex === playerIndex ? 'lose' : 'win') : null}
             />
           )}
         </Suspense>
@@ -412,7 +414,7 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
   )
 }
 
-function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharacterKey, onHudBindings, controls }) {
+function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharacterKey, onHudBindings, controls, playerResult = null, opponentResult = null }) {
   // Opponent position ref shared between usePlayerMovement and useMultiplayer
   const opponentPosRef = useRef([0, 0, -5])
 
@@ -486,6 +488,7 @@ function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharac
         opponentPos={mp.opponent.position}
         faceImageUrl={playerFaceUrl}
         characterKey={playerCharacterKey}
+        gameResult={playerResult}
       />
 
       <OpponentCharacter
@@ -494,6 +497,7 @@ function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharac
         playerPos={movement.position}
         faceImageUrl={opponentFaceUrl}
         characterKey={mp.opponentCharacterKey?.current || 'red'}
+        gameResult={opponentResult}
       />
 
       <CharacterSeparation
