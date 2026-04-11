@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
-import { MAX_HP } from '../constants/combat'
+import { useEffect, useRef, useState } from 'react'
 
 export function HUD({
   playerHp,
   opponentHp,
+  playerMaxHp,
+  opponentMaxHp,
   playerSkill,
   opponentSkill,
   playerName,
@@ -15,27 +16,39 @@ export function HUD({
   cvStatus,
   cvLastDetected,
 }) {
+  // Latch max HP on first valid value so the bar doesn't jump
+  const playerMaxHpRef = useRef(null)
+  const opponentMaxHpRef = useRef(null)
+
   const [state, setState] = useState({
-    playerHp: MAX_HP,
-    opponentHp: MAX_HP,
+    playerHp: 200,
+    opponentHp: 200,
+    playerMaxHp: 200,
+    opponentMaxHp: 200,
     playerSkill: 0,
     opponentSkill: 0,
   })
 
   useEffect(() => {
     const interval = setInterval(() => {
+      // Latch max HP once we receive a real value
+      if (playerMaxHp?.current > 0) playerMaxHpRef.current = playerMaxHp.current
+      if (opponentMaxHp?.current > 0) opponentMaxHpRef.current = opponentMaxHp.current
+
       setState({
         playerHp: playerHp.current,
         opponentHp: opponentHp.current,
+        playerMaxHp: playerMaxHpRef.current ?? 200,
+        opponentMaxHp: opponentMaxHpRef.current ?? 200,
         playerSkill: playerSkill?.current ?? 0,
         opponentSkill: opponentSkill?.current ?? 0,
       })
     }, 33)
     return () => clearInterval(interval)
-  }, [playerHp, opponentHp, playerSkill, opponentSkill])
+  }, [playerHp, opponentHp, playerMaxHp, opponentMaxHp, playerSkill, opponentSkill])
 
-  const p1Pct = (state.playerHp / MAX_HP) * 100
-  const p2Pct = (state.opponentHp / MAX_HP) * 100
+  const p1Pct = Math.min(100, (state.playerHp / state.playerMaxHp) * 100)
+  const p2Pct = Math.min(100, (state.opponentHp / state.opponentMaxHp) * 100)
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
@@ -65,7 +78,7 @@ export function HUD({
               <span className="text-[11px] font-bold tracking-wide text-white/70 truncate max-w-[90px]">
                 {playerName || 'Player'}
               </span>
-              <span className="text-[22px] font-extrabold text-white leading-none">{state.playerHp}</span>
+              <span className="text-[22px] font-extrabold text-white leading-none tabular-nums">{state.playerHp}</span>
             </div>
             <SegGauge pct={state.playerSkill} />
             <HpBar pct={p1Pct} />
@@ -78,7 +91,7 @@ export function HUD({
         <div className="flex items-center gap-2.5 bg-black/55 border border-white/10 pl-4 pr-2.5 py-2 w-full">
           <div className="flex flex-col gap-1.5 flex-1">
             <div className="flex justify-between items-baseline">
-              <span className="text-[22px] font-extrabold text-white leading-none">{state.opponentHp}</span>
+              <span className="text-[22px] font-extrabold text-white leading-none tabular-nums">{state.opponentHp}</span>
               <span className="text-[11px] font-bold tracking-wide text-white/70 truncate max-w-[90px] text-right">
                 {opponentName || 'Enemy'}
               </span>

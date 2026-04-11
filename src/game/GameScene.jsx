@@ -253,6 +253,8 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
         <HUD
           playerHp={hudBindings.playerHp}
           opponentHp={hudBindings.opponentHp}
+          playerMaxHp={hudBindings.playerMaxHp}
+          opponentMaxHp={hudBindings.opponentMaxHp}
           playerSkill={hudBindings.playerGauge}
           opponentSkill={hudBindings.opponentGauge}
           playerName={playerName}
@@ -298,10 +300,12 @@ function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharac
     onHudBindings({
       playerHp: mp.playerHp,
       opponentHp: mp.opponentHp,
+      playerMaxHp: mp.playerMaxHp,
+      opponentMaxHp: mp.opponentMaxHp,
       playerGauge: mp.playerGauge,
       opponentGauge: mp.opponentGauge,
     })
-  }, [mp.opponentGauge, mp.opponentHp, mp.playerGauge, mp.playerHp, onHudBindings])
+  }, [mp.opponentGauge, mp.opponentHp, mp.opponentMaxHp, mp.playerGauge, mp.playerHp, mp.playerMaxHp, onHudBindings])
 
   // Combat inputs
   useFrame(() => {

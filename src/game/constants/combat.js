@@ -9,8 +9,8 @@ export const HIT_RANGE = 1.8
 // Hit detection: angle tolerance in radians (punch must face target within this cone)
 export const HIT_ANGLE_TOLERANCE = Math.PI / 4 // 45°
 
-// Max HP for fighters
-export const MAX_HP = 100
+// Max HP for fighters (must stay in sync with backend DEFAULT_HP baseline)
+export const MAX_HP = 200
 
 // Attack definitions
 export const ATTACKS = {

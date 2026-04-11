@@ -71,8 +71,10 @@ export function useMultiplayer(ws, playerMovement) {
   const opponentCharacterKey = useRef('red')
 
   // ── HP / gauge from server ──
-  const playerHp = useRef(100)
-  const opponentHp = useRef(100)
+  const playerHp = useRef(200)
+  const opponentHp = useRef(200)
+  const playerMaxHp = useRef(200)
+  const opponentMaxHp = useRef(200)
   const playerGauge = useRef(0)
   const opponentGauge = useRef(0)
 
@@ -96,8 +98,14 @@ export function useMultiplayer(ws, playerMovement) {
           if (msg.opponent?.character_id) {
             opponentCharacterKey.current = CHARACTER_ID_TO_KEY[msg.opponent.character_id] || 'red'
           }
-          if (msg.me?.hp) playerHp.current = msg.me.hp
-          if (msg.opponent?.hp) opponentHp.current = msg.opponent.hp
+          if (msg.me?.hp) {
+            playerHp.current = msg.me.hp
+            playerMaxHp.current = msg.me.max_hp ?? msg.me.hp
+          }
+          if (msg.opponent?.hp) {
+            opponentHp.current = msg.opponent.hp
+            opponentMaxHp.current = msg.opponent.max_hp ?? msg.opponent.hp
+          }
           break
 
         case 'character_select':
@@ -248,6 +256,8 @@ export function useMultiplayer(ws, playerMovement) {
     // HP / gauge for HUD
     playerHp,
     opponentHp,
+    playerMaxHp,
+    opponentMaxHp,
     playerGauge,
     opponentGauge,
     // Opponent character
