@@ -355,6 +355,7 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
               controls={cvControls}
               playerResult={gameEndInfo ? (gameEndInfo.winnerIndex === playerIndex ? 'win' : 'lose') : null}
               opponentResult={gameEndInfo ? (gameEndInfo.winnerIndex === playerIndex ? 'lose' : 'win') : null}
+              fightReady={countdownDone && !roundEndInfo && !gameEndInfo}
             />
           )}
         </Suspense>
@@ -414,7 +415,7 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
   )
 }
 
-function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharacterKey, onHudBindings, controls, playerResult = null, opponentResult = null }) {
+function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharacterKey, onHudBindings, controls, playerResult = null, opponentResult = null, fightReady = false }) {
   // Opponent position ref shared between usePlayerMovement and useMultiplayer
   const opponentPosRef = useRef([0, 0, -5])
 
@@ -450,8 +451,9 @@ function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharac
     })
   }, [mp.opponentGauge, mp.opponentHp, mp.opponentMaxHp, mp.playerGauge, mp.playerHp, mp.playerMaxHp, onHudBindings])
 
-  // Combat inputs
+  // Combat inputs — blocked during countdown and round transitions
   useFrame(() => {
+    if (!fightReady) return
     const events = controls.consumeCombatEvents()
     if (events.punchLeft) mp.playerPunch('left')
     if (events.kick) mp.playerKick()

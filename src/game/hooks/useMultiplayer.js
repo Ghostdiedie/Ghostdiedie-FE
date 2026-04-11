@@ -59,7 +59,7 @@ function tickFighter(f, dt) {
  */
 export function useMultiplayer(ws, playerMovement) {
   // ── Opponent position (replaces useOpponentAI) ──
-  const opponentPosition = useRef([0, GROUND_Y, -5])
+  const opponentPosition = useRef([0, GROUND_Y, -6])
   const opponentFacing = useRef(0)
   const opponentIsMoving = useRef(false)
   const opponentMovingBackward = useRef(false)

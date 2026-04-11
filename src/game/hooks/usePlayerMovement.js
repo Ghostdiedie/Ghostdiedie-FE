@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber'
 import { MOVE_SPEED, JUMP_FORCE, GRAVITY, GROUND_Y, ARENA_RADIUS, ARENA_BOUNDARY_MARGIN } from '../constants/game'
 
 export function usePlayerMovement(keysRef, opponentPosRef) {
-  const position = useRef([0, GROUND_Y, 4])
+  const position = useRef([0, GROUND_Y, 6])
   const velocity = useRef([0, 0, 0])
   const isGrounded = useRef(true)
   const facing = useRef(Math.PI)
