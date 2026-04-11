@@ -17,25 +17,25 @@ export const ATTACKS = {
   left_punch: {
     name: 'left_punch',
     damage: 10,
-    duration: 0.42,
-    cooldown: 0.36,
-    hitTime: 0.18,
+    duration: 0.32,
+    cooldown: 0.22,
+    hitTime: 0.12,
     range: 1.8,
   },
   right_punch: {
     name: 'right_punch',
     damage: 10,
-    duration: 0.42,
-    cooldown: 0.36,
-    hitTime: 0.18,
+    duration: 0.32,
+    cooldown: 0.22,
+    hitTime: 0.12,
     range: 1.8,
   },
   kick: {
     name: 'kick',
     damage: 16,
-    duration: 0.8,
-    cooldown: 0.5,
-    hitTime: 0.3,
+    duration: 0.7,
+    cooldown: 0.3,
+    hitTime: 0.25,
     range: 2.2,
   },
 }
@@ -43,7 +43,7 @@ export const ATTACKS = {
 export const DEFAULT_ATTACK = ATTACKS.left_punch
 
 // Hit stun (seconds) — how long the defender is stunned after being hit
-export const HIT_STUN_DURATION = 0.4
+export const HIT_STUN_DURATION = 0.3
 
 // ─── Default animation params (override when custom animations are added) ───
 
