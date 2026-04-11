@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
-import { joinRoom, createWebSocket } from '../api/client'
+import { joinRoom, confirmRoom, getRoomStatus, createWebSocket } from '../api/client'
 import Button from '../components/Button'
+import FaceUpload from '../components/FaceUpload'
 import backgroundImg from '../assets/background/background.webp'
 import logoImg from '../assets/background/logo.webp'
 
@@ -14,48 +15,91 @@ function Dots() {
   )
 }
 
-export default function JoinRoom({ onJoined, onBack }) {
+export default function JoinRoom({ userId, playerName, playerFaceUrl, playerFaceId, onFaceUploaded, onJoined, onBack }) {
   const [code, setCode] = useState('')
-  const [phase, setPhase] = useState('idle') // idle | joining | connecting | error
+  // idle | joining | joined | confirming | waiting_confirm | connecting | error
+  const [phase, setPhase] = useState('idle')
+  const [owner, setOwner] = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
+  const pollRef = useRef(null)
   const wsRef = useRef(null)
 
   function handleCodeChange(e) {
-    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4)
+    const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 8)
     setCode(val)
     if (errorMsg) setErrorMsg('')
   }
 
   async function handleJoin() {
-    if (code.length !== 4 || phase !== 'idle') return
+    if (code.length !== 8 || phase !== 'idle') return
     setPhase('joining')
 
     try {
-      await joinRoom(code)
-      setPhase('connecting')
-
-      const ws = createWebSocket(code)
-      wsRef.current = ws
-
-      ws.onmessage = (e) => {
-        try {
-          const msg = JSON.parse(e.data)
-          if (msg.type === 'GAME_START') onJoined(code)
-        } catch {
-          // Ignore malformed socket payloads.
-        }
-      }
-
-      ws.onerror = () => { setPhase('idle'); setErrorMsg('Connection error. Try again.') }
+      const data = await joinRoom(code, userId)
+      setOwner(data.owner)
+      setPhase('joined')
     } catch (err) {
       setPhase('idle')
       setErrorMsg(err.message)
     }
   }
 
-  function handleBack() { wsRef.current?.close(); onBack() }
+  async function handleConfirm() {
+    setPhase('confirming')
+    try {
+      const data = await confirmRoom(code, userId)
+      if (data.both_confirmed) {
+        setPhase('connecting')
+        connectWebSocket(code)
+      } else {
+        setPhase('waiting_confirm')
+        startPolling(code)
+      }
+    } catch (err) {
+      setPhase('error')
+      setErrorMsg(err.message)
+    }
+  }
 
-  const isLoading = phase === 'joining' || phase === 'connecting'
+  function startPolling(roomCode) {
+    pollRef.current = setInterval(async () => {
+      try {
+        const status = await getRoomStatus(roomCode)
+        if (status.both_confirmed) {
+          clearInterval(pollRef.current)
+          setPhase('connecting')
+          connectWebSocket(roomCode)
+        }
+      } catch { /* ignore */ }
+    }, 1500)
+  }
+
+  function connectWebSocket(roomCode) {
+    const ws = createWebSocket(roomCode)
+    wsRef.current = ws
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data)
+        if (msg.type === 'game_start') {
+          onJoined()
+        }
+      } catch { /* ignore */ }
+    }
+
+    ws.onerror = () => {
+      setPhase('error')
+      setErrorMsg('WebSocket connection failed')
+    }
+  }
+
+  function handleBack() {
+    clearInterval(pollRef.current)
+    wsRef.current?.close()
+    onBack()
+  }
+
+  const isLoading = phase === 'joining'
 
   return (
     <div
@@ -66,10 +110,8 @@ export default function JoinRoom({ onJoined, onBack }) {
         backgroundPosition: 'center',
       }}
     >
-      {/* Dark overlay */}
       <div className="absolute inset-0 bg-black/50" />
 
-      {/* Back button */}
       <button
         onClick={handleBack}
         className="absolute top-6 left-6 z-20 flex items-center gap-2 text-white/70 hover:text-white transition-colors duration-150 text-sm font-medium tracking-wide"
@@ -80,10 +122,7 @@ export default function JoinRoom({ onJoined, onBack }) {
         Back
       </button>
 
-      {/* Content: Logo left + Card right */}
       <div className="relative z-10 flex items-center gap-12 px-8 max-w-[1040px] w-full">
-
-        {/* Logo */}
         <div className="shrink-0 flex-1 flex justify-center">
           <img
             src={logoImg}
@@ -92,51 +131,115 @@ export default function JoinRoom({ onJoined, onBack }) {
           />
         </div>
 
-        {/* Card */}
         <div className="flex-1 flex justify-center">
         <div className="flex flex-col items-center bg-black/60 backdrop-blur-xl border border-white/20 rounded-[28px] px-10 py-10 shadow-[0_8px_40px_rgba(0,0,0,0.5)] w-[360px]">
 
-        <p className="text-sm font-semibold tracking-[0.15em] text-gray-200 uppercase mb-4">
-          Enter Room Code
-        </p>
-
-        {/* Code input */}
-        <div className="w-full bg-white/20 border border-white/40 rounded-[20px] flex items-center justify-center py-4 mb-2">
-          <input
-            type="text"
-            value={code}
-            onChange={handleCodeChange}
-            placeholder="ABCD"
-            maxLength={4}
-            disabled={isLoading}
-            onKeyDown={e => e.key === 'Enter' && handleJoin()}
-            className="bg-transparent font-black text-4xl tracking-[0.4em] text-white text-center placeholder-white/30 focus:outline-none w-full disabled:opacity-50"
-          />
+        {/* Face upload */}
+        <div className="w-full mb-5">
+          <FaceUpload faceUrl={playerFaceUrl} onFaceUploaded={onFaceUploaded} />
         </div>
 
-        {errorMsg && (
-          <p className="text-xs text-red-400 mb-4 mt-1">{errorMsg}</p>
+        {/* Code input phase */}
+        {(phase === 'idle' || phase === 'joining') && (
+          <>
+            <p className="text-sm font-semibold tracking-[0.15em] text-gray-200 uppercase mb-4">
+              Enter Room Code
+            </p>
+
+            <div className="w-full bg-white/20 border border-white/40 rounded-[20px] flex items-center justify-center py-4 mb-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                value={code}
+                onChange={handleCodeChange}
+                placeholder="12345678"
+                maxLength={8}
+                disabled={isLoading}
+                onKeyDown={e => e.key === 'Enter' && handleJoin()}
+                className="bg-transparent font-black text-4xl tracking-[0.25em] text-white text-center placeholder-white/30 focus:outline-none w-full disabled:opacity-50"
+              />
+            </div>
+
+            {errorMsg && (
+              <p className="text-xs text-red-400 mb-4 mt-1">{errorMsg}</p>
+            )}
+
+            <div className="h-3 mb-6" />
+
+            {isLoading ? (
+              <div className="flex items-center gap-2 text-gray-400">
+                <Dots />
+                <span className="text-sm tracking-wide">Joining...</span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3 w-full">
+                <Button onClick={handleJoin} disabled={code.length !== 8} className="w-full justify-center">
+                  Join
+                </Button>
+                <Button onClick={handleBack} className="w-full justify-center">
+                  Back
+                </Button>
+              </div>
+            )}
+          </>
         )}
 
-        <div className="h-3 mb-6" />
+        {/* Joined → show owner info + confirm */}
+        {phase === 'joined' && owner && (
+          <div className="flex flex-col items-center gap-5 w-full">
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-xs text-gray-400 tracking-widest uppercase">Your Opponent</span>
+              <div className="flex items-center gap-3">
+                {owner.profile_image_url && (
+                  <img src={owner.profile_image_url} alt="" className="w-10 h-10 rounded-full object-cover border border-white/30" />
+                )}
+                <span className="text-2xl font-black text-white">{owner.name}</span>
+              </div>
+            </div>
+            <Button onClick={handleConfirm} className="w-full justify-center">
+              Confirm
+            </Button>
+            <button
+              onClick={handleBack}
+              className="text-sm text-white/40 hover:text-white/70 transition-colors duration-150"
+            >
+              ← Back
+            </button>
+          </div>
+        )}
 
-        {isLoading ? (
-          <div className="flex items-center gap-2 text-gray-400">
+        {/* Confirming */}
+        {phase === 'confirming' && (
+          <div className="flex items-center gap-2 text-gray-400 py-4">
             <Dots />
-            <span className="text-sm tracking-wide">
-              {phase === 'joining' ? 'Joining...' : 'Connecting...'}
-            </span>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3 w-full">
-            <Button onClick={handleJoin} disabled={code.length !== 4} className="w-full justify-center">
-              Join
-            </Button>
-            <Button onClick={handleBack} className="w-full justify-center">
-              Back
-            </Button>
+            <span className="text-sm tracking-wide">Confirming...</span>
           </div>
         )}
+
+        {/* Waiting for owner to confirm */}
+        {phase === 'waiting_confirm' && (
+          <div className="flex items-center gap-2 text-gray-400 py-4">
+            <Dots />
+            <span className="text-sm tracking-wide">Waiting for host to confirm</span>
+          </div>
+        )}
+
+        {/* Connecting */}
+        {phase === 'connecting' && (
+          <div className="flex items-center gap-2 text-green-400 py-4">
+            <Dots />
+            <span className="text-sm tracking-wide">Starting game...</span>
+          </div>
+        )}
+
+        {/* Error */}
+        {phase === 'error' && (
+          <div className="flex flex-col items-center gap-4 py-6">
+            <p className="text-sm text-red-400 text-center">{errorMsg}</p>
+            <Button onClick={handleBack} className="w-full justify-center">Back</Button>
+          </div>
+        )}
+
         </div>
         </div>
       </div>

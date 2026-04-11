@@ -1,73 +1,70 @@
-// ─────────────────────────────────────────────
-// MOCK MODE  (swap for real fetch when BE is ready)
-// ─────────────────────────────────────────────
-
-function delay(ms) {
-  return new Promise(r => setTimeout(r, ms))
-}
-
-class MockWebSocket {
-  constructor() {
-    this.onmessage = null
-    this.onerror = null
-    this.onclose = null
-    // Simulate opponent connecting after 2.5 s
-    this._timer = setTimeout(() => {
-      this.onmessage?.({ data: JSON.stringify({ type: 'GAME_START' }) })
-    }, 2500)
-  }
-  close() {
-    clearTimeout(this._timer)
-  }
-}
-
-export async function createRoom(playerName) {
-  await delay(700)
-  const code = Math.random().toString(36).slice(2, 6).toUpperCase()
-  return { room_code: code, status: 'WAITING' }
-}
-
-export async function joinRoom(roomCode) {
-  await delay(500)
-  return { room_code: roomCode.toUpperCase(), status: 'READY' }
-}
-
-export function createWebSocket(_roomCode) {
-  return new MockWebSocket()
-}
-
-
-// ─────────────────────────────────────────────
-// REAL IMPLEMENTATION (uncomment when ready)
-// ─────────────────────────────────────────────
-/*
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://api.ghostdiedie.club'
 const API_KEY  = import.meta.env.VITE_API_KEY || ''
 
-function headers() {
-  return { 'Content-Type': 'application/json', 'X-API-Key': API_KEY }
+function authHeaders() {
+  return { 'X-API-Key': API_KEY }
 }
 
-export async function createRoom(playerName, characterId = 1) {
-  const res = await fetch(`${API_BASE}/api/rooms`, {
-    method: 'POST', headers: headers(),
-    body: JSON.stringify({ player_name: playerName, character_id: characterId }),
-  })
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Failed to create room') }
+async function get(path) {
+  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() })
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}))
+    throw new Error(e.detail || `Request failed: ${res.status}`)
+  }
   return res.json()
 }
 
-export async function joinRoom(roomCode, playerName, characterId = 1) {
-  const res = await fetch(`${API_BASE}/api/rooms/${roomCode.toUpperCase()}/join`, {
-    method: 'POST', headers: headers(),
-    body: JSON.stringify({ player_name: playerName, character_id: characterId }),
+// ── Face ──────────────────────────────────────
+
+export async function uploadFace(file) {
+  const form = new FormData()
+  form.append('file', file)
+  const res = await fetch(`${API_BASE}/api/face`, {
+    method: 'POST',
+    headers: { 'X-API-Key': API_KEY },
+    body: form,
   })
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Room not found or already full') }
-  return res.json()
+  if (!res.ok) throw new Error('Face processing failed')
+  return res.json() // { face_id, face_url }
 }
+
+// ── User ──────────────────────────────────────
+
+export async function registerUser(name, faceId) {
+  const params = new URLSearchParams({ name, face_id: faceId })
+  return get(`/api/user/register?${params}`)
+  // → { status, user_id, name, profile_image_url }
+}
+
+// ── Room ──────────────────────────────────────
+
+export async function createRoom(userId, characterId = 1) {
+  const params = new URLSearchParams({ user_id: userId, character_id: characterId })
+  return get(`/api/room/create?${params}`)
+  // → { code, owner, expires_in }
+}
+
+export async function joinRoom(code, userId, characterId = 1) {
+  const params = new URLSearchParams({ code, user_id: userId, character_id: characterId })
+  return get(`/api/room/join?${params}`)
+  // → { success, code, owner, guest }
+}
+
+export async function confirmRoom(code, userId) {
+  const params = new URLSearchParams({ code, user_id: userId })
+  return get(`/api/room/confirm?${params}`)
+  // → { confirmed, both_confirmed }
+}
+
+export async function getRoomStatus(code) {
+  const params = new URLSearchParams({ code })
+  return get(`/api/room/status?${params}`)
+  // → { code, status, owner, guest, both_confirmed, expires_in }
+}
+
+// ── WebSocket ─────────────────────────────────
 
 export function createWebSocket(roomCode) {
   const wsBase = API_BASE.replace(/^https/, 'wss').replace(/^http/, 'ws')
-  return new WebSocket(`${wsBase}/ws/${roomCode.toUpperCase()}`)
+  return new WebSocket(`${wsBase}/ws/${roomCode}`)
 }
-*/

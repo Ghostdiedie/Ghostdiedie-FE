@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { createRoom, createWebSocket } from '../api/client'
+import { createRoom, confirmRoom, getRoomStatus, createWebSocket } from '../api/client'
 import Button from '../components/Button'
+import FaceUpload from '../components/FaceUpload'
 import backgroundImg from '../assets/background/background.webp'
 import logoImg from '../assets/background/logo.webp'
 
@@ -14,48 +15,104 @@ function Dots() {
   )
 }
 
-export default function CreateRoom({ onGameStart, onBack }) {
+export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFaceId, onFaceUploaded, onGameStart, onBack }) {
   const [roomCode, setRoomCode] = useState(null)
-  const [phase, setPhase] = useState('creating') // creating | waiting | joined | error
+  // creating | waiting | guest_joined | confirming | waiting_confirm | connecting | error
+  const [phase, setPhase] = useState('creating')
+  const [guest, setGuest] = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
+  const pollRef = useRef(null)
   const wsRef = useRef(null)
 
+  // 1. Create room on mount
   useEffect(() => {
     let alive = true
 
     async function init() {
       try {
-        const data = await createRoom()
+        const data = await createRoom(userId)
         if (!alive) return
-        setRoomCode(data.room_code)
+        setRoomCode(data.code)
         setPhase('waiting')
-
-        const ws = createWebSocket(data.room_code)
-        wsRef.current = ws
-
-        ws.onmessage = (e) => {
-          try {
-            const msg = JSON.parse(e.data)
-            if (msg.type === 'GAME_START' && alive) {
-              setPhase('joined')
-              setTimeout(() => { if (alive) onGameStart(data.room_code) }, 700)
-            }
-          } catch {
-            // Ignore malformed socket payloads.
-          }
-        }
-
-        ws.onerror = () => { if (alive) { setPhase('error'); setErrorMsg('Connection error. Try again.') } }
       } catch (err) {
         if (alive) { setPhase('error'); setErrorMsg(err.message) }
       }
     }
 
     init()
-    return () => { alive = false; wsRef.current?.close() }
-  }, [onGameStart])
+    return () => { alive = false }
+  }, [userId])
 
-  function handleBack() { wsRef.current?.close(); onBack() }
+  // 2. Poll room/status while waiting for guest or confirm
+  useEffect(() => {
+    if (!roomCode || phase === 'creating' || phase === 'connecting' || phase === 'error') return
+
+    let alive = true
+    pollRef.current = setInterval(async () => {
+      try {
+        const status = await getRoomStatus(roomCode)
+        if (!alive) return
+
+        // Guest joined
+        if (status.guest && phase === 'waiting') {
+          setGuest(status.guest)
+          setPhase('guest_joined')
+        }
+
+        // Both confirmed → connect WebSocket
+        if (status.both_confirmed && phase === 'waiting_confirm') {
+          clearInterval(pollRef.current)
+          setPhase('connecting')
+          connectWebSocket(roomCode, alive)
+        }
+      } catch {
+        // Ignore poll errors
+      }
+    }, 1500)
+
+    return () => { alive = false; clearInterval(pollRef.current) }
+  }, [roomCode, phase])
+
+  function connectWebSocket(code) {
+    const ws = createWebSocket(code)
+    wsRef.current = ws
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data)
+        if (msg.type === 'game_start') {
+          onGameStart()
+        }
+      } catch { /* ignore */ }
+    }
+
+    ws.onerror = () => {
+      setPhase('error')
+      setErrorMsg('WebSocket connection failed')
+    }
+  }
+
+  async function handleConfirm() {
+    setPhase('confirming')
+    try {
+      const data = await confirmRoom(roomCode, userId)
+      if (data.both_confirmed) {
+        setPhase('connecting')
+        connectWebSocket(roomCode)
+      } else {
+        setPhase('waiting_confirm')
+      }
+    } catch (err) {
+      setPhase('error')
+      setErrorMsg(err.message)
+    }
+  }
+
+  function handleBack() {
+    clearInterval(pollRef.current)
+    wsRef.current?.close()
+    onBack()
+  }
 
   return (
     <div
@@ -66,10 +123,8 @@ export default function CreateRoom({ onGameStart, onBack }) {
         backgroundPosition: 'center',
       }}
     >
-      {/* Dark overlay */}
       <div className="absolute inset-0 bg-black/50" />
 
-      {/* Back button */}
       <button
         onClick={handleBack}
         className="absolute top-6 left-6 z-20 flex items-center gap-2 text-white/70 hover:text-white transition-colors duration-150 text-sm font-medium tracking-wide"
@@ -80,10 +135,7 @@ export default function CreateRoom({ onGameStart, onBack }) {
         Back
       </button>
 
-      {/* Content: Logo left + Card right */}
       <div className="relative z-10 flex items-center gap-12 px-8 max-w-[1040px] w-full">
-
-        {/* Logo */}
         <div className="shrink-0 flex-1 flex justify-center">
           <img
             src={logoImg}
@@ -92,12 +144,16 @@ export default function CreateRoom({ onGameStart, onBack }) {
           />
         </div>
 
-        {/* Card */}
         <div className="flex-1 flex justify-center">
         <div className="flex flex-col items-center bg-black/60 backdrop-blur-xl border border-white/20 rounded-[28px] px-10 py-10 shadow-[0_8px_40px_rgba(0,0,0,0.5)] w-[360px]">
 
+        {/* Face upload */}
+        <div className="w-full mb-5">
+          <FaceUpload faceUrl={playerFaceUrl} onFaceUploaded={onFaceUploaded} />
+        </div>
+
         {phase === 'creating' && (
-          <div className="flex flex-col items-center gap-3 py-8">
+          <div className="flex flex-col items-center gap-3 py-4">
             <Dots />
             <p className="text-sm text-gray-400 tracking-wide">Creating room...</p>
           </div>
@@ -110,37 +166,81 @@ export default function CreateRoom({ onGameStart, onBack }) {
           </div>
         )}
 
-        {(phase === 'waiting' || phase === 'joined') && roomCode && (
+        {phase !== 'creating' && phase !== 'error' && roomCode && (
           <div className="flex flex-col items-center w-full">
             <p className="text-sm font-semibold tracking-[0.15em] text-gray-200 uppercase mb-4">
               Room Code
             </p>
 
-            {/* Code display */}
             <div className="w-full bg-white/20 border border-white/40 rounded-[20px] py-5 flex items-center justify-center mb-2">
-              <span className="font-black text-5xl tracking-[0.35em] text-white">
+              <span className="font-black text-4xl tracking-[0.25em] text-white">
                 {roomCode}
               </span>
             </div>
 
-            <p className="text-xs text-gray-400 mb-8">
+            <p className="text-xs text-gray-400 mb-6">
               Share this code with your friend
             </p>
 
-            {phase === 'waiting' ? (
+            {/* Waiting for guest */}
+            {phase === 'waiting' && (
               <div className="flex items-center gap-2 text-gray-400 mb-8">
                 <Dots />
                 <span className="text-sm tracking-wide">Waiting for opponent</span>
               </div>
-            ) : (
-              <div className="flex items-center gap-2 text-green-400 mb-8">
-                <span className="text-sm font-medium tracking-wide">Opponent joined!</span>
+            )}
+
+            {/* Guest joined → show info + confirm */}
+            {phase === 'guest_joined' && guest && (
+              <div className="flex flex-col items-center gap-5 w-full mb-2">
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-xs text-gray-400 tracking-widest uppercase">Opponent</span>
+                  <div className="flex items-center gap-3">
+                    {guest.profile_image_url && (
+                      <img src={guest.profile_image_url} alt="" className="w-10 h-10 rounded-full object-cover border border-white/30" />
+                    )}
+                    <span className="text-2xl font-black text-white">{guest.name}</span>
+                  </div>
+                  <span className="text-xs text-green-400 tracking-wide">joined!</span>
+                </div>
+                <Button onClick={handleConfirm} className="w-full justify-center">
+                  Confirm
+                </Button>
               </div>
             )}
 
-            <Button onClick={handleBack} className="w-full justify-center">
-              Back
-            </Button>
+            {/* Confirming */}
+            {phase === 'confirming' && (
+              <div className="flex items-center gap-2 text-gray-400 mb-8">
+                <Dots />
+                <span className="text-sm tracking-wide">Confirming...</span>
+              </div>
+            )}
+
+            {/* Waiting for opponent confirm */}
+            {phase === 'waiting_confirm' && (
+              <div className="flex items-center gap-2 text-gray-400 mb-8">
+                <Dots />
+                <span className="text-sm tracking-wide">Waiting for opponent to confirm</span>
+              </div>
+            )}
+
+            {/* Connecting WebSocket */}
+            {phase === 'connecting' && (
+              <div className="flex items-center gap-2 text-green-400 mb-8">
+                <Dots />
+                <span className="text-sm tracking-wide">Starting game...</span>
+              </div>
+            )}
+
+            {phase !== 'connecting' && phase !== 'confirming' && (
+              <button
+                onClick={handleBack}
+                className="mt-3 text-sm text-white/40 hover:text-white/70 transition-colors duration-150"
+              >
+                ← Back
+              </button>
+            )}
           </div>
         )}
         </div>

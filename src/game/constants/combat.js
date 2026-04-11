@@ -33,9 +33,9 @@ export const ATTACKS = {
   kick: {
     name: 'kick',
     damage: 16,
-    duration: 0.58,
-    cooldown: 0.62,
-    hitTime: 0.28,
+    duration: 1.6,
+    cooldown: 0.4,
+    hitTime: 0.5,
     range: 2.2,
   },
 }
@@ -43,7 +43,7 @@ export const ATTACKS = {
 export const DEFAULT_ATTACK = ATTACKS.left_punch
 
 // Hit stun (seconds) — how long the defender is stunned after being hit
-export const HIT_STUN_DURATION = 0.3
+export const HIT_STUN_DURATION = 0.8
 
 // ─── Default animation params (override when custom animations are added) ───
 

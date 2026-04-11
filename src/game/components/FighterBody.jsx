@@ -6,17 +6,24 @@ import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { CHARACTER_MODEL_PATHS } from '../constants/game'
 import { HIT_KNOCKBACK, HIT_ROCK_ANGLE } from '../constants/combat'
 
+// Face plane dimensions in world units (relative to character scale)
+const FACE_PLANE_SIZE = 0.38
+// Offset from head bone: forward (Z), up (Y)
+const FACE_OFFSET = new THREE.Vector3(0, 0.08, 0.14)
+
 const CLIP_ALIASES = {
   idle: ['idle'],
   walk: ['walk', 'run'],
-  jump: ['jump'],
-  hit: ['hit'],
-  kick: ['kick'],
+  jump: ['jump', 'jumping', 'jump_up', 'jump_start'],
+  hit: ['hit', 'damage', 'hurt', 'get_hit', 'take_hit', 'react'],
+  kick: ['kick', 'kicking'],
   left_punch: ['left_punch', 'left-punch', 'left punch', 'leftpunch'],
   right_punch: ['right_punch', 'right-punch', 'right punch', 'rightpunch'],
 }
 
 const ONESHOT_CLIPS = new Set(['jump', 'hit', 'kick', 'left_punch', 'right_punch'])
+// These clips must start instantly, no blending delay
+const INSTANT_CLIPS = new Set(['jump', 'hit'])
 const FADE_DURATION = 0.12
 
 function normalizeClipName(name) {
@@ -66,9 +73,11 @@ export function FighterBody({
   scale,
   fighterState,
   isMoving,
+  movingBackward,
   isGrounded,
   facingTarget,
   positionRef,
+  faceImageUrl,
 }) {
   const facingGroupRef = useRef()
   const bodyGroupRef = useRef()
@@ -107,6 +116,46 @@ export function FighterBody({
       }
     })
   }, [clonedScene])
+
+  // Attach / update face plane on the Head bone
+  useEffect(() => {
+    let headBone = null
+    clonedScene.traverse((node) => {
+      if (node.isBone && node.name === 'mixamorig:Head') headBone = node
+    })
+    if (!headBone) return
+
+    // Remove any existing face plane
+    const existing = headBone.getObjectByName('__facePlane__')
+    if (existing) headBone.remove(existing)
+
+    if (!faceImageUrl) return
+
+    const texture = new THREE.TextureLoader().load(faceImageUrl)
+    texture.colorSpace = THREE.SRGBColorSpace
+
+    const geo = new THREE.CircleGeometry(FACE_PLANE_SIZE, 32)
+    const mat = new THREE.MeshStandardMaterial({
+      map: texture,
+      transparent: true,
+      depthWrite: false,
+      side: THREE.FrontSide,
+      roughness: 0.8,
+      metalness: 0,
+    })
+    const plane = new THREE.Mesh(geo, mat)
+    plane.name = '__facePlane__'
+    plane.position.copy(FACE_OFFSET)
+    // The head bone faces +Z in local space; no extra rotation needed
+    headBone.add(plane)
+
+    return () => {
+      headBone.remove(plane)
+      geo.dispose()
+      mat.dispose()
+      texture.dispose()
+    }
+  }, [clonedScene, faceImageUrl])
 
   useEffect(() => {
     const missing = Object.entries(clipNames)
@@ -159,27 +208,64 @@ export function FighterBody({
 
     const logicalClip = pickAnimation(fighterState, isMoving, grounded)
     const nextClipName = clipNames[logicalClip] ?? clipNames.idle ?? names[0]
+    if (!nextClipName) return
 
-    if (!nextClipName || activeActionRef.current === nextClipName) return
+    // Same animation already playing — only skip if it's a looping clip.
+    // One-shots that re-trigger (e.g. jump again) need to reset.
+    const isSameClip = activeActionRef.current === nextClipName
+
+    // Update walk direction every frame (reverse when moving backward)
+    if (isSameClip && logicalClip === 'walk') {
+      const currentAction = actions[activeActionRef.current]
+      if (currentAction) {
+        const backward = movingBackward?.current ?? false
+        currentAction.setEffectiveTimeScale(backward ? -1 : 1)
+      }
+      return
+    }
+
+    if (isSameClip && !ONESHOT_CLIPS.has(logicalClip)) return
+
+    // Don't interrupt a playing one-shot with idle/walk,
+    // but DO allow hit, new attacks, and jump to interrupt
+    if (isSameClip && ONESHOT_CLIPS.has(logicalClip)) {
+      const currentAction = actions[activeActionRef.current]
+      if (currentAction?.isRunning()) return // still playing, don't restart
+    }
+    if (!isSameClip && activeActionRef.current) {
+      const currentAction = actions[activeActionRef.current]
+      const currentLogical = Object.entries(clipNames).find(([, v]) => v === activeActionRef.current)?.[0]
+      if (
+        currentLogical && ONESHOT_CLIPS.has(currentLogical) && currentAction?.isRunning()
+        && !fighter.isHit
+        && !fighter.attackName
+        && grounded.current
+      ) {
+        return
+      }
+    }
 
     const nextAction = actions[nextClipName]
     if (!nextAction) return
 
     const previousAction = activeActionRef.current ? actions[activeActionRef.current] : null
-    previousAction?.fadeOut(FADE_DURATION)
+    if (previousAction && !isSameClip) {
+      previousAction.fadeOut(FADE_DURATION)
+    }
 
-    nextAction
-      .reset()
-      .setEffectiveTimeScale(1)
-      .setEffectiveWeight(1)
-      .fadeIn(FADE_DURATION)
+    const walkBackward = logicalClip === 'walk' && (movingBackward?.current ?? false)
+    nextAction.reset().setEffectiveTimeScale(walkBackward ? -1 : 1).setEffectiveWeight(1)
 
-    if (fighter.attackName === logicalClip && fighter.attackDuration > 0) {
-      nextAction.setDuration(fighter.attackDuration)
+    // Jump and hit start instantly — no fade delay
+    if (INSTANT_CLIPS.has(logicalClip)) {
+      nextAction.fadeIn(0)
+    } else {
+      nextAction.fadeIn(FADE_DURATION)
     }
 
     if (ONESHOT_CLIPS.has(logicalClip)) {
       nextAction.setLoop(THREE.LoopOnce, 1)
+      nextAction.clampWhenFinished = true
     } else {
       nextAction.setLoop(THREE.LoopRepeat, Infinity)
     }

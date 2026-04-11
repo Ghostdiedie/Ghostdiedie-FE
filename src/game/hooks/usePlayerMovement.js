@@ -8,6 +8,7 @@ export function usePlayerMovement(keysRef, opponentPosRef) {
   const isGrounded = useRef(true)
   const facing = useRef(Math.PI)
   const isMoving = useRef(false)
+  const movingBackward = useRef(false)
 
   useFrame(() => {
     const k = keysRef.current
@@ -37,6 +38,7 @@ export function usePlayerMovement(keysRef, opponentPosRef) {
       moveZ = (moveZ / len) * MOVE_SPEED
     }
     isMoving.current = len > 0
+    movingBackward.current = k.backward && !k.forward
 
     // Apply horizontal movement
     pos[0] += moveX
@@ -69,5 +71,5 @@ export function usePlayerMovement(keysRef, opponentPosRef) {
     }
   })
 
-  return { position, velocity, facing, isGrounded, isMoving }
+  return { position, velocity, facing, isGrounded, isMoving, movingBackward }
 }

@@ -1,13 +1,22 @@
+import { useState } from 'react'
 import { Routes, Route, useNavigate } from 'react-router-dom'
 import { GameScene } from '../game/GameScene'
 import LandingPage from '../room/LandingPage'
 import LobbyPage from '../room/LobbyPage'
 import CreateRoom from '../room/CreateRoom'
 import JoinRoom from '../room/JoinRoom'
-import Countdown from '../room/Countdown'
 
 export default function AppFlow() {
+  const [playerName, setPlayerName] = useState('')
+  const [playerFaceUrl, setPlayerFaceUrl] = useState(null)
+  const [playerFaceId, setPlayerFaceId] = useState(null)
+  const [userId, setUserId] = useState(null)
   const navigate = useNavigate()
+
+  function handleFaceUploaded(faceId, faceUrl) {
+    setPlayerFaceId(faceId)
+    setPlayerFaceUrl(faceUrl)
+  }
 
   return (
     <Routes>
@@ -16,6 +25,12 @@ export default function AppFlow() {
         path="/start"
         element={
           <LobbyPage
+            playerName={playerName}
+            setPlayerName={setPlayerName}
+            playerFaceUrl={playerFaceUrl}
+            playerFaceId={playerFaceId}
+            onFaceUploaded={handleFaceUploaded}
+            onUserRegistered={setUserId}
             onCreateGame={() => navigate('/create')}
             onJoinGame={() => navigate('/join')}
             onBack={() => navigate('/')}
@@ -26,7 +41,12 @@ export default function AppFlow() {
         path="/create"
         element={
           <CreateRoom
-            onGameStart={() => navigate('/countdown')}
+            userId={userId}
+            playerName={playerName}
+            playerFaceUrl={playerFaceUrl}
+            playerFaceId={playerFaceId}
+            onFaceUploaded={handleFaceUploaded}
+            onGameStart={() => navigate('/game')}
             onBack={() => navigate('/start')}
           />
         }
@@ -35,13 +55,17 @@ export default function AppFlow() {
         path="/join"
         element={
           <JoinRoom
-            onJoined={() => navigate('/countdown')}
+            userId={userId}
+            playerName={playerName}
+            playerFaceUrl={playerFaceUrl}
+            playerFaceId={playerFaceId}
+            onFaceUploaded={handleFaceUploaded}
+            onJoined={() => navigate('/game')}
             onBack={() => navigate('/start')}
           />
         }
       />
-      <Route path="/countdown" element={<Countdown onComplete={() => navigate('/game')} />} />
-      <Route path="/game" element={<GameScene />} />
+      <Route path="/game" element={<GameScene playerFaceUrl={playerFaceUrl} />} />
     </Routes>
   )
 }

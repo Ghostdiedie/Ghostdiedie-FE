@@ -120,8 +120,8 @@ export function useCombat() {
   // Per-frame update: tick timers, detect hits
   // positionRefs: { player: ref([x,y,z]), opponent: ref([x,y,z]) }
   // facingRefs: { player: ref(angle), opponent: ref(angle) }
-  const update = useCallback((playerPos, opponentPos, playerFacing, opponentFacing) => {
-    const dt = 1 / 60 // fixed timestep approximation
+  const update = useCallback((playerPos, opponentPos, playerFacing, opponentFacing, delta) => {
+    const dt = delta || 1 / 60
 
     for (const [fighter, pos, targetPos, facing] of [
       [player, playerPos, opponentPos, playerFacing],
