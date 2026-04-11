@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useCallback, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import {
   BOT_MOVE_SPEED,
@@ -6,22 +6,25 @@ import {
   BOT_PUNCH_CHANCE,
   BOT_PUNCH_RANGE,
 } from '../constants/combat'
-import { ARENA_RADIUS, GROUND_Y } from '../constants/game'
+import { ARENA_RADIUS, ARENA_BOUNDARY_MARGIN, GROUND_Y } from '../constants/game'
 
 /**
  * Simple opponent AI: moves toward/away from player to maintain distance,
- * then randomly punches when in range.
+ * then randomly attacks when in range.
  *
  * playerPositionRef can be null initially — set _playerPosRef.current after init
  * to resolve circular dependency with usePlayerMovement.
  */
-export function useOpponentAI(playerPositionRef, opponentPunch) {
+export function useOpponentAI(playerPositionRef, opponentPunch, opponentKick) {
   const position = useRef([0, GROUND_Y, -5])
   const facing = useRef(0)
   const isMoving = useRef(false)
 
   // Indirection ref to resolve circular dependency
   const _playerPosRef = useRef(playerPositionRef)
+  const setPlayerPositionRef = useCallback((nextPlayerPositionRef) => {
+    _playerPosRef.current = nextPlayerPositionRef
+  }, [])
 
   useFrame(() => {
     const playerRef = _playerPosRef.current
@@ -57,8 +60,7 @@ export function useOpponentAI(playerPositionRef, opponentPunch) {
     }
 
     // Keep bot inside arena
-    const margin = 1.5
-    const limit = ARENA_RADIUS - margin
+    const limit = ARENA_RADIUS - ARENA_BOUNDARY_MARGIN
     const botDist = Math.sqrt(pos[0] * pos[0] + pos[2] * pos[2])
     if (botDist > limit) {
       const scale = limit / botDist
@@ -69,14 +71,18 @@ export function useOpponentAI(playerPositionRef, opponentPunch) {
     // Keep on ground
     pos[1] = GROUND_Y
 
-    // Random punching when in range
+    // Random attacks when in range
     if (dist < BOT_PUNCH_RANGE) {
       if (Math.random() < BOT_PUNCH_CHANCE) {
-        const hand = Math.random() < 0.5 ? 'left' : 'right'
-        opponentPunch(hand)
+        if (Math.random() < 0.3) {
+          opponentKick()
+        } else {
+          const hand = Math.random() < 0.5 ? 'left' : 'right'
+          opponentPunch(hand)
+        }
       }
     }
   })
 
-  return { position, facing, isMoving, _playerPosRef }
+  return { position, facing, isMoving, setPlayerPositionRef }
 }

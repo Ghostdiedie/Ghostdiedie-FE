@@ -1,4 +1,4 @@
-import { Suspense } from 'react'
+import { Suspense, useEffect } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Arena } from './components/Arena'
 import { PlayerCharacter } from './components/PlayerCharacter'
@@ -9,6 +9,17 @@ import { useKeyboard } from './hooks/useKeyboard'
 import { usePlayerMovement } from './hooks/usePlayerMovement'
 import { useCombat } from './hooks/useCombat'
 import { useOpponentAI } from './hooks/useOpponentAI'
+import { ARENA_RADIUS, ARENA_BOUNDARY_MARGIN, FIGHTER_MIN_DISTANCE, SEPARATION_MAX_PUSH } from './constants/game'
+
+function clampToArena(pos) {
+  const limit = ARENA_RADIUS - ARENA_BOUNDARY_MARGIN
+  const dist = Math.sqrt(pos[0] * pos[0] + pos[2] * pos[2])
+  if (dist > limit && dist > 0) {
+    const scale = limit / dist
+    pos[0] *= scale
+    pos[2] *= scale
+  }
+}
 
 function CombatUpdater({ combat, playerPos, opponentPos, playerFacing, opponentFacing }) {
   useFrame(() => {
@@ -22,21 +33,54 @@ function CombatUpdater({ combat, playerPos, opponentPos, playerFacing, opponentF
   return null
 }
 
+function CharacterSeparation({ playerPosRef, opponentPosRef }) {
+  useFrame(() => {
+    const player   = playerPosRef.current
+    const opponent = opponentPosRef.current
+
+    let dx = opponent[0] - player[0]
+    let dz = opponent[2] - player[2]
+    let dist = Math.sqrt(dx * dx + dz * dz)
+
+    if (dist === 0) { dx = 0; dz = 1; dist = 1 }
+    if (dist >= FIGHTER_MIN_DISTANCE) return
+
+    // Cap push per frame so separation is smooth, not a teleport
+    const overlap = FIGHTER_MIN_DISTANCE - dist
+    const push = Math.min(overlap * 0.5, SEPARATION_MAX_PUSH)
+    const nx = dx / dist
+    const nz = dz / dist
+
+    player[0]   -= nx * push
+    player[2]   -= nz * push
+    opponent[0] += nx * push
+    opponent[2] += nz * push
+
+    clampToArena(player)
+    clampToArena(opponent)
+  })
+
+  return null
+}
+
 function Scene({ combat }) {
-  const { keys, consumePunchEvents } = useKeyboard()
+  const { keys, consumeCombatEvents } = useKeyboard()
 
   // Opponent AI needs player position, player movement needs opponent position.
   // useOpponentAI creates its own position ref, we pass it to usePlayerMovement.
-  const opponentAI = useOpponentAI(null, combat.opponentPunch) // playerPos patched below
+  const opponentAI = useOpponentAI(null, combat.opponentPunch, combat.opponentKick) // playerPos patched below
+  const { setPlayerPositionRef } = opponentAI
   const movement = usePlayerMovement(keys, opponentAI.position)
 
-  // Patch: give opponent AI the live player position ref
-  opponentAI._playerPosRef.current = movement.position
+  useEffect(() => {
+    setPlayerPositionRef(movement.position)
+  }, [movement.position, setPlayerPositionRef])
 
-  // Process punch inputs each frame
+  // Process combat inputs each frame
   useFrame(() => {
-    const events = consumePunchEvents()
+    const events = consumeCombatEvents()
     if (events.punchLeft) combat.playerPunch('left')
+    if (events.kick) combat.playerKick()
     if (events.punchRight) combat.playerPunch('right')
   })
 
@@ -75,7 +119,6 @@ function Scene({ combat }) {
         movement={movement}
         fighterState={combat.player}
         opponentPos={opponentAI.position}
-        playerIndex={1}
       />
 
       {/* Opponent (AI) */}
@@ -94,8 +137,13 @@ function Scene({ combat }) {
         opponentFacing={opponentAI.facing}
       />
 
-      {/* Camera follows player */}
-      <FollowCamera targetPosition={movement.position} />
+      <CharacterSeparation
+        playerPosRef={movement.position}
+        opponentPosRef={opponentAI.position}
+      />
+
+      {/* Camera follows player from behind */}
+      <FollowCamera targetPosition={movement.position} playerFacing={movement.facing} />
     </>
   )
 }

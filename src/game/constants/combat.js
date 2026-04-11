@@ -9,15 +9,38 @@ export const HIT_RANGE = 1.8
 // Hit detection: angle tolerance in radians (punch must face target within this cone)
 export const HIT_ANGLE_TOLERANCE = Math.PI / 4 // 45°
 
-// Damage per punch
-export const PUNCH_DAMAGE = 10
-
 // Max HP for fighters
 export const MAX_HP = 100
 
-// Punch timing (seconds)
-export const PUNCH_DURATION = 0.35 // how long the punch animation plays
-export const PUNCH_COOLDOWN = 0.5 // minimum time between punches
+// Attack definitions
+export const ATTACKS = {
+  left_punch: {
+    name: 'left_punch',
+    damage: 10,
+    duration: 0.42,
+    cooldown: 0.36,
+    hitTime: 0.18,
+    range: 1.8,
+  },
+  right_punch: {
+    name: 'right_punch',
+    damage: 10,
+    duration: 0.42,
+    cooldown: 0.36,
+    hitTime: 0.18,
+    range: 1.8,
+  },
+  kick: {
+    name: 'kick',
+    damage: 16,
+    duration: 0.58,
+    cooldown: 0.62,
+    hitTime: 0.28,
+    range: 2.2,
+  },
+}
+
+export const DEFAULT_ATTACK = ATTACKS.left_punch
 
 // Hit stun (seconds) — how long the defender is stunned after being hit
 export const HIT_STUN_DURATION = 0.3

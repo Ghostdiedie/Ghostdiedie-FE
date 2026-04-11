@@ -7,6 +7,7 @@ const KEY_MAP = {
   KeyD: 'right',
   Space: 'jump',
   KeyQ: 'punchLeft',
+  KeyE: 'kick',
   KeyF: 'punchRight',
 }
 
@@ -18,16 +19,18 @@ export function useKeyboard() {
     right: false,
     jump: false,
     punchLeft: false,
+    kick: false,
     punchRight: false,
   })
 
-  // Track punch key-down edges (true only on the frame the key goes down)
-  const punchEvents = useRef({ punchLeft: false, punchRight: false })
+  // Track attack key-down edges (true only on the frame the key goes down)
+  const combatEvents = useRef({ punchLeft: false, kick: false, punchRight: false })
 
-  const consumePunchEvents = useCallback(() => {
-    const events = { ...punchEvents.current }
-    punchEvents.current.punchLeft = false
-    punchEvents.current.punchRight = false
+  const consumeCombatEvents = useCallback(() => {
+    const events = { ...combatEvents.current }
+    combatEvents.current.punchLeft = false
+    combatEvents.current.kick = false
+    combatEvents.current.punchRight = false
     return events
   }, [])
 
@@ -36,9 +39,9 @@ export function useKeyboard() {
       const action = KEY_MAP[e.code]
       if (action) {
         e.preventDefault()
-        // Fire punch event only on initial key-down, not on repeat
-        if ((action === 'punchLeft' || action === 'punchRight') && !keys.current[action]) {
-          punchEvents.current[action] = true
+        // Fire attack event only on initial key-down, not on repeat
+        if ((action === 'punchLeft' || action === 'punchRight' || action === 'kick') && !keys.current[action]) {
+          combatEvents.current[action] = true
         }
         keys.current[action] = true
       }
@@ -60,5 +63,5 @@ export function useKeyboard() {
     }
   }, [])
 
-  return { keys, consumePunchEvents }
+  return { keys, consumeCombatEvents }
 }
