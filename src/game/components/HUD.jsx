@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { MAX_HP } from '../constants/combat'
 
-export function HUD({ playerHp, opponentHp, playerSkill, opponentSkill }) {
+export function HUD({ playerHp, opponentHp, playerSkill, opponentSkill, playerFaceUrl, opponentFaceUrl, webcamVideoRef, remoteVideoRef, cvMode }) {
   const [state, setState] = useState({
     playerHp: MAX_HP,
     opponentHp: MAX_HP,
@@ -40,16 +40,20 @@ export function HUD({ playerHp, opponentHp, playerSkill, opponentSkill }) {
 
       {/* ── Player cam + panel (bottom-left, flush) ── */}
       <div className="absolute bottom-[52px] left-4 flex flex-col">
-        {/* cam placeholder */}
-        <div className="w-full aspect-video bg-black/45 border border-white/10 border-b-0 flex items-center justify-center text-white/15">
-          <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <rect x="2" y="7" width="15" height="10" rx="2" stroke="currentColor" strokeWidth="1.4" />
-            <path d="M17 10l5-3v10l-5-3V10z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-          </svg>
+        {/* Player webcam */}
+        <div className="w-full aspect-video bg-black/45 border border-white/10 border-b-0 overflow-hidden flex items-center justify-center text-white/15">
+          {webcamVideoRef ? (
+            <video ref={webcamVideoRef} autoPlay muted playsInline className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
+          ) : (
+            <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="2" y="7" width="15" height="10" rx="2" stroke="currentColor" strokeWidth="1.4" />
+              <path d="M17 10l5-3v10l-5-3V10z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+            </svg>
+          )}
         </div>
         {/* player panel */}
         <div className="flex items-center gap-2.5 bg-black/55 border border-white/10 pl-2.5 pr-4 py-2">
-          <Portrait label="1P" />
+          <Portrait label="1P" faceUrl={playerFaceUrl} />
           <div className="flex flex-col gap-1.5 min-w-[160px]">
             <div className="flex justify-between items-baseline">
               <span className="text-[10px] font-bold tracking-[0.18em] text-white/40 uppercase">Player</span>
@@ -61,8 +65,20 @@ export function HUD({ playerHp, opponentHp, playerSkill, opponentSkill }) {
         </div>
       </div>
 
-      {/* ── Enemy panel (bottom-right) ── */}
-      <div className="absolute bottom-[52px] right-4 flex items-center gap-2.5 bg-black/55 border border-white/10 pl-4 pr-2.5 py-2">
+      {/* ── Enemy cam + panel (bottom-right) ── */}
+      <div className="absolute bottom-[52px] right-4 flex flex-col items-end">
+        {/* Opponent webcam */}
+        <div className="w-full aspect-video bg-black/45 border border-white/10 border-b-0 overflow-hidden flex items-center justify-center text-white/15">
+          {remoteVideoRef ? (
+            <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} />
+          ) : (
+            <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <rect x="2" y="7" width="15" height="10" rx="2" stroke="currentColor" strokeWidth="1.4" />
+              <path d="M17 10l5-3v10l-5-3V10z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+            </svg>
+          )}
+        </div>
+      <div className="flex items-center gap-2.5 bg-black/55 border border-white/10 pl-4 pr-2.5 py-2 w-full">
         <div className="flex flex-col gap-1.5 min-w-[160px]">
           <div className="flex justify-between items-baseline">
             <span className="text-[22px] font-extrabold text-white leading-none">{state.opponentHp}</span>
@@ -71,24 +87,38 @@ export function HUD({ playerHp, opponentHp, playerSkill, opponentSkill }) {
           <SegGauge pct={state.opponentSkill} rtl />
           <HpBar pct={p2Pct} rtl />
         </div>
-        <Portrait label="2P" />
+        <Portrait label="2P" faceUrl={opponentFaceUrl} />
+      </div>
       </div>
 
       {/* ── Controls (bottom-center) ── */}
       <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-black/50 border border-white/6 rounded px-3.5 py-1.5">
-        <div className="flex items-center gap-1">
-          <Key k="W" /><Key k="A" /><Key k="S" /><Key k="D" />
-        </div>
-        <Sep />
-        <div className="flex items-center gap-1">
-          <Key k="Space" wide /><Hint>jump</Hint>
-        </div>
-        <Sep />
-        <div className="flex items-center gap-1">
-          <Key k="Q" /><Hint>왼손</Hint>
-          <Key k="E" /><Hint>킥</Hint>
-          <Key k="F" /><Hint>오른손</Hint>
-        </div>
+        {cvMode ? (
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <Hint>CV Mode — punch to attack</Hint>
+            <Sep />
+            <Key k="Tab" wide /><Hint>switch</Hint>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-1">
+              <Key k="W" /><Key k="A" /><Key k="S" /><Key k="D" />
+            </div>
+            <Sep />
+            <div className="flex items-center gap-1">
+              <Key k="Space" wide /><Hint>jump</Hint>
+            </div>
+            <Sep />
+            <div className="flex items-center gap-1">
+              <Key k="Q" /><Hint>왼손</Hint>
+              <Key k="E" /><Hint>킥</Hint>
+              <Key k="F" /><Hint>오른손</Hint>
+            </div>
+            <Sep />
+            <Key k="Tab" wide /><Hint>CV</Hint>
+          </>
+        )}
       </div>
 
     </div>
@@ -97,14 +127,23 @@ export function HUD({ playerHp, opponentHp, playerSkill, opponentSkill }) {
 
 /* ── Sub-components ─────────────────────────── */
 
-function Portrait({ label }) {
+function Portrait({ label, faceUrl }) {
   return (
-    <div className="shrink-0 w-14 h-14 rounded-[3px] bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-1 text-white/20">
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.4" />
-        <path d="M4 20c0-4 3.582-7 8-7s8 3 8 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      </svg>
-      <span className="text-[8px] font-bold tracking-widest text-white/20 uppercase">{label}</span>
+    <div className="shrink-0 w-14 h-14 rounded-[3px] bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-1 text-white/20 overflow-hidden relative">
+      {faceUrl ? (
+        <>
+          <img src={faceUrl} alt={label} className="absolute inset-0 w-full h-full object-cover" />
+          <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] font-bold tracking-widest text-white uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">{label}</span>
+        </>
+      ) : (
+        <>
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.4" />
+            <path d="M4 20c0-4 3.582-7 8-7s8 3 8 7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+          </svg>
+          <span className="text-[8px] font-bold tracking-widest text-white/20 uppercase">{label}</span>
+        </>
+      )}
     </div>
   )
 }

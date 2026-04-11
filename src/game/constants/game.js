@@ -39,6 +39,22 @@ export const CHARACTER_MODEL_PATHS = {
   white: characterWhite,
 }
 
+// Map character_id (from backend) to model key
+export const CHARACTER_ID_TO_KEY = {
+  1: 'blue',
+  2: 'red',
+  3: 'black',
+  4: 'white',
+}
+
+// Map model key to character_id (for backend)
+export const CHARACTER_KEY_TO_ID = {
+  blue: 1,
+  red: 2,
+  black: 3,
+  white: 4,
+}
+
 // Player colors
 export const PLAYER_COLORS = {
   1: '#3b82f6',

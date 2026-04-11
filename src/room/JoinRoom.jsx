@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { joinRoom, confirmRoom, getRoomStatus, createWebSocket } from '../api/client'
+import { joinRoom, confirmRoom, getRoomStatus } from '../api/client'
 import Button from '../components/Button'
 import FaceUpload from '../components/FaceUpload'
 import backgroundImg from '../assets/background/background.webp'
@@ -15,14 +15,13 @@ function Dots() {
   )
 }
 
-export default function JoinRoom({ userId, playerName, playerFaceUrl, playerFaceId, onFaceUploaded, onJoined, onBack }) {
+export default function JoinRoom({ userId, playerName, playerFaceUrl, playerFaceId, onFaceUploaded, onOpponentFaceUrl, onJoined, onBack }) {
   const [code, setCode] = useState('')
   // idle | joining | joined | confirming | waiting_confirm | connecting | error
   const [phase, setPhase] = useState('idle')
   const [owner, setOwner] = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
   const pollRef = useRef(null)
-  const wsRef = useRef(null)
 
   function handleCodeChange(e) {
     const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 8)
@@ -37,6 +36,7 @@ export default function JoinRoom({ userId, playerName, playerFaceUrl, playerFace
     try {
       const data = await joinRoom(code, userId)
       setOwner(data.owner)
+      onOpponentFaceUrl(data.owner.profile_image_url || null)
       setPhase('joined')
     } catch (err) {
       setPhase('idle')
@@ -49,8 +49,7 @@ export default function JoinRoom({ userId, playerName, playerFaceUrl, playerFace
     try {
       const data = await confirmRoom(code, userId)
       if (data.both_confirmed) {
-        setPhase('connecting')
-        connectWebSocket(code)
+        onJoined(code)
       } else {
         setPhase('waiting_confirm')
         startPolling(code)
@@ -67,35 +66,14 @@ export default function JoinRoom({ userId, playerName, playerFaceUrl, playerFace
         const status = await getRoomStatus(roomCode)
         if (status.both_confirmed) {
           clearInterval(pollRef.current)
-          setPhase('connecting')
-          connectWebSocket(roomCode)
+          onJoined(roomCode)
         }
       } catch { /* ignore */ }
     }, 1500)
   }
 
-  function connectWebSocket(roomCode) {
-    const ws = createWebSocket(roomCode)
-    wsRef.current = ws
-
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data)
-        if (msg.type === 'game_start') {
-          onJoined()
-        }
-      } catch { /* ignore */ }
-    }
-
-    ws.onerror = () => {
-      setPhase('error')
-      setErrorMsg('WebSocket connection failed')
-    }
-  }
-
   function handleBack() {
     clearInterval(pollRef.current)
-    wsRef.current?.close()
     onBack()
   }
 

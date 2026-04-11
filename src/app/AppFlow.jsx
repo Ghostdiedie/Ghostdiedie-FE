@@ -1,16 +1,28 @@
 import { useState } from 'react'
-import { Routes, Route, useNavigate } from 'react-router-dom'
+import { Routes, Route, useNavigate, Navigate } from 'react-router-dom'
 import { GameScene } from '../game/GameScene'
 import LandingPage from '../room/LandingPage'
 import LobbyPage from '../room/LobbyPage'
 import CreateRoom from '../room/CreateRoom'
 import JoinRoom from '../room/JoinRoom'
+import CharacterSelect from '../room/CharacterSelect'
+
+/**
+ * Route guard — redirects to fallback if condition is falsy.
+ */
+function Guard({ ok, fallback = '/', children }) {
+  if (!ok) return <Navigate to={fallback} replace />
+  return children
+}
 
 export default function AppFlow() {
   const [playerName, setPlayerName] = useState('')
   const [playerFaceUrl, setPlayerFaceUrl] = useState(null)
   const [playerFaceId, setPlayerFaceId] = useState(null)
   const [userId, setUserId] = useState(null)
+  const [opponentFaceUrl, setOpponentFaceUrl] = useState(null)
+  const [roomCode, setRoomCode] = useState(null)
+  const [selectedCharacter, setSelectedCharacter] = useState(null)
   const navigate = useNavigate()
 
   function handleFaceUploaded(faceId, faceUrl) {
@@ -18,9 +30,21 @@ export default function AppFlow() {
     setPlayerFaceUrl(faceUrl)
   }
 
+  function handleRoomReady(code) {
+    setRoomCode(code)
+    navigate('/select')
+  }
+
+  function handleCharacterConfirmed(characterKey) {
+    setSelectedCharacter(characterKey)
+    navigate('/game')
+  }
+
   return (
     <Routes>
       <Route path="/" element={<LandingPage onStart={() => navigate('/start')} />} />
+
+      {/* /start — anyone can access */}
       <Route
         path="/start"
         element={
@@ -37,35 +61,76 @@ export default function AppFlow() {
           />
         }
       />
+
+      {/* /create — must have userId (registered) */}
       <Route
         path="/create"
         element={
-          <CreateRoom
-            userId={userId}
-            playerName={playerName}
-            playerFaceUrl={playerFaceUrl}
-            playerFaceId={playerFaceId}
-            onFaceUploaded={handleFaceUploaded}
-            onGameStart={() => navigate('/game')}
-            onBack={() => navigate('/start')}
-          />
+          <Guard ok={userId} fallback="/start">
+            <CreateRoom
+              userId={userId}
+              playerName={playerName}
+              playerFaceUrl={playerFaceUrl}
+              playerFaceId={playerFaceId}
+              onFaceUploaded={handleFaceUploaded}
+              onOpponentFaceUrl={setOpponentFaceUrl}
+              onGameStart={handleRoomReady}
+              onBack={() => navigate('/start')}
+            />
+          </Guard>
         }
       />
+
+      {/* /join — must have userId */}
       <Route
         path="/join"
         element={
-          <JoinRoom
-            userId={userId}
-            playerName={playerName}
-            playerFaceUrl={playerFaceUrl}
-            playerFaceId={playerFaceId}
-            onFaceUploaded={handleFaceUploaded}
-            onJoined={() => navigate('/game')}
-            onBack={() => navigate('/start')}
-          />
+          <Guard ok={userId} fallback="/start">
+            <JoinRoom
+              userId={userId}
+              playerName={playerName}
+              playerFaceUrl={playerFaceUrl}
+              playerFaceId={playerFaceId}
+              onFaceUploaded={handleFaceUploaded}
+              onOpponentFaceUrl={setOpponentFaceUrl}
+              onJoined={handleRoomReady}
+              onBack={() => navigate('/start')}
+            />
+          </Guard>
         }
       />
-      <Route path="/game" element={<GameScene playerFaceUrl={playerFaceUrl} />} />
+
+      {/* /select — must have roomCode (room confirmed) */}
+      <Route
+        path="/select"
+        element={
+          <Guard ok={roomCode} fallback="/start">
+            <CharacterSelect
+              playerFaceUrl={playerFaceUrl}
+              onConfirm={handleCharacterConfirmed}
+              onBack={() => navigate('/start')}
+            />
+          </Guard>
+        }
+      />
+
+      {/* /game — must have roomCode + character selected */}
+      <Route
+        path="/game"
+        element={
+          <Guard ok={roomCode && selectedCharacter} fallback="/start">
+            <GameScene
+              roomCode={roomCode}
+              playerFaceUrl={playerFaceUrl}
+              opponentFaceUrl={opponentFaceUrl}
+              playerCharacterKey={selectedCharacter || 'blue'}
+            />
+          </Guard>
+        }
+      />
+
+      {/* Catch-all → home */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { createRoom, confirmRoom, getRoomStatus, createWebSocket } from '../api/client'
+import { createRoom, confirmRoom, getRoomStatus } from '../api/client'
 import Button from '../components/Button'
 import FaceUpload from '../components/FaceUpload'
 import backgroundImg from '../assets/background/background.webp'
@@ -15,14 +15,23 @@ function Dots() {
   )
 }
 
-export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFaceId, onFaceUploaded, onGameStart, onBack }) {
+function formatTime(sec) {
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFaceId, onFaceUploaded, onOpponentFaceUrl, onGameStart, onBack }) {
   const [roomCode, setRoomCode] = useState(null)
-  // creating | waiting | guest_joined | confirming | waiting_confirm | connecting | error
   const [phase, setPhase] = useState('creating')
   const [guest, setGuest] = useState(null)
+  const [remaining, setRemaining] = useState(null)
   const [errorMsg, setErrorMsg] = useState('')
   const pollRef = useRef(null)
-  const wsRef = useRef(null)
+  const phaseRef = useRef(phase)
+
+  // Keep phaseRef in sync so polling callback reads latest phase
+  useEffect(() => { phaseRef.current = phase }, [phase])
 
   // 1. Create room on mount
   useEffect(() => {
@@ -33,6 +42,7 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
         const data = await createRoom(userId)
         if (!alive) return
         setRoomCode(data.code)
+        setRemaining(data.expires_in)
         setPhase('waiting')
       } catch (err) {
         if (alive) { setPhase('error'); setErrorMsg(err.message) }
@@ -43,9 +53,29 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
     return () => { alive = false }
   }, [userId])
 
-  // 2. Poll room/status while waiting for guest or confirm
+  // 2. Local countdown timer (ticks every second)
   useEffect(() => {
-    if (!roomCode || phase === 'creating' || phase === 'connecting' || phase === 'error') return
+    if (remaining == null || remaining <= 0) return
+    if (phase === 'connecting' || phase === 'error' || phase === 'expired') return
+
+    const t = setInterval(() => {
+      setRemaining(prev => {
+        if (prev <= 1) {
+          clearInterval(t)
+          clearInterval(pollRef.current)
+          setPhase('expired')
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+
+    return () => clearInterval(t)
+  }, [remaining != null, phase])
+
+  // 3. Poll room/status
+  useEffect(() => {
+    if (!roomCode || phase === 'creating' || phase === 'connecting' || phase === 'error' || phase === 'expired') return
 
     let alive = true
     pollRef.current = setInterval(async () => {
@@ -53,52 +83,39 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
         const status = await getRoomStatus(roomCode)
         if (!alive) return
 
-        // Guest joined
-        if (status.guest && phase === 'waiting') {
+        setRemaining(status.expires_in)
+
+        const p = phaseRef.current
+        if (status.guest && p === 'waiting') {
           setGuest(status.guest)
+          onOpponentFaceUrl(status.guest.profile_image_url || null)
           setPhase('guest_joined')
         }
 
-        // Both confirmed → connect WebSocket
-        if (status.both_confirmed && phase === 'waiting_confirm') {
+        if (status.both_confirmed && p === 'waiting_confirm') {
           clearInterval(pollRef.current)
-          setPhase('connecting')
-          connectWebSocket(roomCode, alive)
+          onGameStart(roomCode)
         }
-      } catch {
-        // Ignore poll errors
+      } catch (err) {
+        if (!alive) return
+        // 410 = expired
+        if (err.message.includes('expired') || err.message.includes('410')) {
+          clearInterval(pollRef.current)
+          setRemaining(0)
+          setPhase('expired')
+        }
       }
-    }, 1500)
+    }, 2000)
 
     return () => { alive = false; clearInterval(pollRef.current) }
   }, [roomCode, phase])
-
-  function connectWebSocket(code) {
-    const ws = createWebSocket(code)
-    wsRef.current = ws
-
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data)
-        if (msg.type === 'game_start') {
-          onGameStart()
-        }
-      } catch { /* ignore */ }
-    }
-
-    ws.onerror = () => {
-      setPhase('error')
-      setErrorMsg('WebSocket connection failed')
-    }
-  }
 
   async function handleConfirm() {
     setPhase('confirming')
     try {
       const data = await confirmRoom(roomCode, userId)
       if (data.both_confirmed) {
-        setPhase('connecting')
-        connectWebSocket(roomCode)
+        onGameStart(roomCode)
       } else {
         setPhase('waiting_confirm')
       }
@@ -110,7 +127,6 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
 
   function handleBack() {
     clearInterval(pollRef.current)
-    wsRef.current?.close()
     onBack()
   }
 
@@ -147,7 +163,6 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
         <div className="flex-1 flex justify-center">
         <div className="flex flex-col items-center bg-black/60 backdrop-blur-xl border border-white/20 rounded-[28px] px-10 py-10 shadow-[0_8px_40px_rgba(0,0,0,0.5)] w-[360px]">
 
-        {/* Face upload */}
         <div className="w-full mb-5">
           <FaceUpload faceUrl={playerFaceUrl} onFaceUploaded={onFaceUploaded} />
         </div>
@@ -166,7 +181,14 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
           </div>
         )}
 
-        {phase !== 'creating' && phase !== 'error' && roomCode && (
+        {phase === 'expired' && (
+          <div className="flex flex-col items-center gap-4 py-6">
+            <p className="text-sm text-red-400 text-center">Room expired</p>
+            <Button onClick={handleBack} className="w-full justify-center">Create New Room</Button>
+          </div>
+        )}
+
+        {!['creating', 'error', 'expired'].includes(phase) && roomCode && (
           <div className="flex flex-col items-center w-full">
             <p className="text-sm font-semibold tracking-[0.15em] text-gray-200 uppercase mb-4">
               Room Code
@@ -178,11 +200,17 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
               </span>
             </div>
 
-            <p className="text-xs text-gray-400 mb-6">
-              Share this code with your friend
-            </p>
+            <div className="flex items-center justify-between w-full mb-6">
+              <p className="text-xs text-gray-400">
+                Share this code with your friend
+              </p>
+              {remaining != null && (
+                <span className={`text-xs font-mono ${remaining < 60 ? 'text-red-400' : 'text-gray-400'}`}>
+                  {formatTime(remaining)}
+                </span>
+              )}
+            </div>
 
-            {/* Waiting for guest */}
             {phase === 'waiting' && (
               <div className="flex items-center gap-2 text-gray-400 mb-8">
                 <Dots />
@@ -190,7 +218,6 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
               </div>
             )}
 
-            {/* Guest joined → show info + confirm */}
             {phase === 'guest_joined' && guest && (
               <div className="flex flex-col items-center gap-5 w-full mb-2">
                 <div className="flex flex-col items-center gap-2">
@@ -209,7 +236,6 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
               </div>
             )}
 
-            {/* Confirming */}
             {phase === 'confirming' && (
               <div className="flex items-center gap-2 text-gray-400 mb-8">
                 <Dots />
@@ -217,7 +243,6 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
               </div>
             )}
 
-            {/* Waiting for opponent confirm */}
             {phase === 'waiting_confirm' && (
               <div className="flex items-center gap-2 text-gray-400 mb-8">
                 <Dots />
@@ -225,7 +250,6 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
               </div>
             )}
 
-            {/* Connecting WebSocket */}
             {phase === 'connecting' && (
               <div className="flex items-center gap-2 text-green-400 mb-8">
                 <Dots />
@@ -233,7 +257,7 @@ export default function CreateRoom({ userId, playerName, playerFaceUrl, playerFa
               </div>
             )}
 
-            {phase !== 'connecting' && phase !== 'confirming' && (
+            {!['connecting', 'confirming'].includes(phase) && (
               <button
                 onClick={handleBack}
                 className="mt-3 text-sm text-white/40 hover:text-white/70 transition-colors duration-150"

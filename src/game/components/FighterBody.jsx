@@ -285,6 +285,4 @@ export function FighterBody({
   )
 }
 
-Object.values(CHARACTER_MODEL_PATHS).forEach((path) => {
-  useGLTF.preload(path)
-})
+// Preload removed — models loaded on demand after character selection
