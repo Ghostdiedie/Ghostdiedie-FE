@@ -1,10 +1,8 @@
 import { useRef, useCallback } from 'react'
 import {
+  ATTACKS,
+  DEFAULT_ATTACK,
   MAX_HP,
-  PUNCH_DAMAGE,
-  PUNCH_DURATION,
-  PUNCH_COOLDOWN,
-  HIT_RANGE,
   HIT_ANGLE_TOLERANCE,
   HIT_STUN_DURATION,
 } from '../constants/combat'
@@ -13,16 +11,21 @@ import {
  * Manages combat state for two fighters (player & opponent).
  *
  * Each fighter state:
- *   hp, punchHand (null|'left'|'right'), punchTimer, cooldownTimer,
- *   hitStunTimer, isHit
+ *   hp, attackName, attackTimer, attackDuration, attackHitTime, attackRange,
+ *   attackDamage, attackResolved, cooldownTimer, hitStunTimer, isHit
  *
  * Returns refs and methods consumed by character components and HUD.
  */
 export function useCombat() {
   const player = useRef({
     hp: MAX_HP,
-    punchHand: null, // 'left' | 'right' | null
-    punchTimer: 0,
+    attackName: null,
+    attackTimer: 0,
+    attackDuration: 0,
+    attackHitTime: 0,
+    attackRange: DEFAULT_ATTACK.range,
+    attackDamage: DEFAULT_ATTACK.damage,
+    attackResolved: false,
     cooldownTimer: 0,
     hitStunTimer: 0,
     isHit: false,
@@ -30,8 +33,13 @@ export function useCombat() {
 
   const opponent = useRef({
     hp: MAX_HP,
-    punchHand: null,
-    punchTimer: 0,
+    attackName: null,
+    attackTimer: 0,
+    attackDuration: 0,
+    attackHitTime: 0,
+    attackRange: DEFAULT_ATTACK.range,
+    attackDamage: DEFAULT_ATTACK.damage,
+    attackResolved: false,
     cooldownTimer: 0,
     hitStunTimer: 0,
     isHit: false,
@@ -46,15 +54,22 @@ export function useCombat() {
   const opponentSkill = useRef(0)
 
   /**
-   * Try to start a punch for a fighter.
-   * Returns true if the punch started, false if on cooldown or already punching.
+   * Try to start an attack for a fighter.
+   * Returns true if the attack started, false if on cooldown or already attacking.
    */
-  const tryPunch = useCallback((fighter, hand) => {
+  const tryAttack = useCallback((fighter, attackName) => {
     const f = fighter.current
-    if (f.punchHand !== null) return false // already punching
+    const attack = ATTACKS[attackName]
+    if (!attack) return false
+    if (f.attackName !== null) return false // already attacking
     if (f.cooldownTimer > 0) return false // on cooldown
-    f.punchHand = hand
-    f.punchTimer = PUNCH_DURATION
+    f.attackName = attack.name
+    f.attackTimer = attack.duration
+    f.attackDuration = attack.duration
+    f.attackHitTime = attack.hitTime
+    f.attackRange = attack.range
+    f.attackDamage = attack.damage
+    f.attackResolved = false
     return true
   }, [])
 
@@ -63,12 +78,12 @@ export function useCombat() {
    * attackerPos, defenderPos: [x,y,z] arrays
    * attackerFacing: radian angle the attacker is facing (y-axis rotation)
    */
-  const checkHit = useCallback((attackerPos, defenderPos, attackerFacing) => {
+  const checkHit = useCallback((attackerPos, defenderPos, attackerFacing, attackRange) => {
     const dx = defenderPos[0] - attackerPos[0]
     const dz = defenderPos[2] - attackerPos[2]
     const distance = Math.sqrt(dx * dx + dz * dz)
 
-    if (distance > HIT_RANGE) return false
+    if (distance > attackRange) return false
 
     // Check if attacker is facing the defender within tolerance
     const angleToDefender = Math.atan2(dx, dz)
@@ -83,9 +98,9 @@ export function useCombat() {
   /**
    * Apply damage to a fighter and trigger hit stun.
    */
-  const applyHit = useCallback((defender, attacker) => {
+  const applyHit = useCallback((defender, attacker, damage) => {
     const d = defender.current
-    d.hp = Math.max(0, d.hp - PUNCH_DAMAGE)
+    d.hp = Math.max(0, d.hp - damage)
     d.isHit = true
     d.hitStunTimer = HIT_STUN_DURATION
     // Charge skill gauge on hit
@@ -118,21 +133,28 @@ export function useCombat() {
       // Tick cooldown
       if (f.cooldownTimer > 0) f.cooldownTimer -= dt
 
-      // Tick punch
-      if (f.punchHand !== null) {
-        f.punchTimer -= dt
+      // Tick attack
+      if (f.attackName !== null) {
+        f.attackTimer -= dt
 
-        // Check hit at the midpoint of the punch
-        if (f.punchTimer <= PUNCH_DURATION * 0.5 && f.punchTimer > PUNCH_DURATION * 0.5 - dt) {
-          if (checkHit(pos, targetPos, facing)) {
-            applyHit(defender, fighter)
+        const elapsed = f.attackDuration - f.attackTimer
+        if (!f.attackResolved && elapsed >= f.attackHitTime) {
+          f.attackResolved = true
+          if (checkHit(pos, targetPos, facing, f.attackRange)) {
+            applyHit(defender, fighter, f.attackDamage)
           }
         }
 
-        if (f.punchTimer <= 0) {
-          f.punchHand = null
-          f.punchTimer = 0
-          f.cooldownTimer = PUNCH_COOLDOWN
+        if (f.attackTimer <= 0) {
+          const endedAttack = ATTACKS[f.attackName] ?? DEFAULT_ATTACK
+          f.attackName = null
+          f.attackTimer = 0
+          f.attackDuration = 0
+          f.attackHitTime = 0
+          f.attackRange = DEFAULT_ATTACK.range
+          f.attackDamage = DEFAULT_ATTACK.damage
+          f.attackResolved = false
+          f.cooldownTimer = endedAttack.cooldown
         }
       }
 
@@ -155,14 +177,22 @@ export function useCombat() {
     opponentHp.current = opponent.current.hp
   }, [checkHit, applyHit])
 
-  // Convenience: trigger player punch from keyboard events
+  // Convenience: trigger player attacks from keyboard events
   const playerPunch = useCallback((hand) => {
-    tryPunch(player, hand)
-  }, [tryPunch])
+    tryAttack(player, hand === 'left' ? 'left_punch' : 'right_punch')
+  }, [tryAttack])
+
+  const playerKick = useCallback(() => {
+    tryAttack(player, 'kick')
+  }, [tryAttack])
 
   const opponentPunch = useCallback((hand) => {
-    tryPunch(opponent, hand)
-  }, [tryPunch])
+    tryAttack(opponent, hand === 'left' ? 'left_punch' : 'right_punch')
+  }, [tryAttack])
+
+  const opponentKick = useCallback(() => {
+    tryAttack(opponent, 'kick')
+  }, [tryAttack])
 
   return {
     player,
@@ -172,7 +202,9 @@ export function useCombat() {
     playerSkill,
     opponentSkill,
     playerPunch,
+    playerKick,
     opponentPunch,
+    opponentKick,
     update,
   }
 }

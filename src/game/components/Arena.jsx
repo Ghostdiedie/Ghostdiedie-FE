@@ -2,12 +2,16 @@ import { useMemo } from 'react'
 import * as THREE from 'three'
 import {
   ARENA_RADIUS,
-  WALL_HEIGHT,
   STAND_ROWS,
   STAND_ROW_HEIGHT,
   STAND_ROW_DEPTH,
   AUDIENCE_SCALE,
 } from '../constants/game'
+
+function pseudoRandom(seed) {
+  const value = Math.sin(seed * 12.9898) * 43758.5453123
+  return value - Math.floor(value)
+}
 
 function AudienceFigure({ position, color }) {
   return (
@@ -46,14 +50,14 @@ function AudienceRow({ radius, y, count }) {
     const colors = ['#c2185b', '#1565c0', '#2e7d32', '#f57f17', '#6a1b9a', '#e65100', '#00838f', '#4527a0']
     for (let i = 0; i < count; i++) {
       const angle = (i / count) * Math.PI * 2
-      const jitterR = (Math.random() - 0.5) * 0.3
-      const jitterAngle = (Math.random() - 0.5) * (0.5 / count) * Math.PI * 2
+      const jitterR = (pseudoRandom(radius * 17 + y * 29 + i) - 0.5) * 0.3
+      const jitterAngle = (pseudoRandom(radius * 31 + y * 43 + i) - 0.5) * (0.5 / count) * Math.PI * 2
       const a = angle + jitterAngle
       const r = radius + jitterR
       arr.push({
         key: i,
         pos: [Math.sin(a) * r, y, Math.cos(a) * r],
-        color: colors[Math.floor(Math.random() * colors.length)],
+        color: colors[Math.floor(pseudoRandom(radius * 59 + y * 71 + i) * colors.length)],
       })
     }
     return arr
@@ -134,9 +138,6 @@ function Pillars() {
 }
 
 export function Arena() {
-  const topRingRadius = ARENA_RADIUS + 1 + STAND_ROWS * STAND_ROW_DEPTH + 0.5
-  const topRingY = STAND_ROWS * STAND_ROW_HEIGHT + 2
-
   return (
     <group>
       {/* Arena floor — sandy colosseum ground */}

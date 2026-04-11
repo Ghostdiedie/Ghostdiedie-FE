@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { MOVE_SPEED, JUMP_FORCE, GRAVITY, GROUND_Y, ARENA_RADIUS } from '../constants/game'
+import { MOVE_SPEED, JUMP_FORCE, GRAVITY, GROUND_Y, ARENA_RADIUS, ARENA_BOUNDARY_MARGIN } from '../constants/game'
 
 export function usePlayerMovement(keysRef, opponentPosRef) {
   const position = useRef([0, GROUND_Y, 4])
@@ -14,13 +14,21 @@ export function usePlayerMovement(keysRef, opponentPosRef) {
     const pos = position.current
     const vel = velocity.current
 
-    // Movement intent
+    // Compute facing FIRST so movement is relative to it
+    const opponentPos = opponentPosRef?.current ?? [0, 0, -5]
+    const dx = opponentPos[0] - pos[0]
+    const dz = opponentPos[2] - pos[2]
+    facing.current = Math.atan2(dx, dz)
+
+    const f = facing.current
+    // Forward/backward = along facing axis
+    // Left/right = perpendicular (strafe)
     let moveX = 0
     let moveZ = 0
-    if (k.forward) moveZ -= 1
-    if (k.backward) moveZ += 1
-    if (k.left) moveX -= 1
-    if (k.right) moveX += 1
+    if (k.forward)   { moveX += Math.sin(f);              moveZ += Math.cos(f) }
+    if (k.backward)  { moveX -= Math.sin(f);              moveZ -= Math.cos(f) }
+    if (k.left)      { moveX += Math.sin(f + Math.PI / 2); moveZ += Math.cos(f + Math.PI / 2) }
+    if (k.right)     { moveX += Math.sin(f - Math.PI / 2); moveZ += Math.cos(f - Math.PI / 2) }
 
     // Normalize diagonal movement
     const len = Math.sqrt(moveX * moveX + moveZ * moveZ)
@@ -33,12 +41,6 @@ export function usePlayerMovement(keysRef, opponentPosRef) {
     // Apply horizontal movement
     pos[0] += moveX
     pos[2] += moveZ
-
-    // Always face toward the opponent (dynamic position)
-    const opponentPos = opponentPosRef?.current ?? [0, 0, -5]
-    const dx = opponentPos[0] - pos[0]
-    const dz = opponentPos[2] - pos[2]
-    facing.current = Math.atan2(dx, dz)
 
     // Jump
     if (k.jump && isGrounded.current) {
@@ -58,8 +60,7 @@ export function usePlayerMovement(keysRef, opponentPosRef) {
     }
 
     // Circular arena boundary clamping
-    const margin = 1.5
-    const limit = ARENA_RADIUS - margin
+    const limit = ARENA_RADIUS - ARENA_BOUNDARY_MARGIN
     const dist = Math.sqrt(pos[0] * pos[0] + pos[2] * pos[2])
     if (dist > limit) {
       const scale = limit / dist

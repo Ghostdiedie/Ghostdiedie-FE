@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { GROUND_Y, PLAYER_COLORS, PLAYER_SCALE } from '../constants/game'
+import { CHARACTER_MODEL_PATHS, PLAYER_SCALE } from '../constants/game'
 import { FighterBody } from './FighterBody'
 
 /**
@@ -8,13 +8,11 @@ import { FighterBody } from './FighterBody'
  *
  * Props:
  *   movement      — from usePlayerMovement (position, isMoving, etc.)
- *   fighterState  — ref from useCombat (punchHand, isHit, etc.)
+ *   fighterState  — ref from useCombat (attackName, isHit, etc.)
  *   opponentPos   — ref<[x,y,z]> opponent's current world position
- *   playerIndex   — 1 or 2 for color selection
  */
-export function PlayerCharacter({ movement, fighterState, opponentPos, playerIndex = 1 }) {
+export function PlayerCharacter({ movement, fighterState, opponentPos }) {
   const groupRef = useRef()
-  const color = PLAYER_COLORS[playerIndex]
 
   useFrame(() => {
     if (!groupRef.current) return
@@ -25,10 +23,11 @@ export function PlayerCharacter({ movement, fighterState, opponentPos, playerInd
   return (
     <FighterBody
       groupRef={groupRef}
-      color={color}
+      modelPath={CHARACTER_MODEL_PATHS.blue}
       scale={PLAYER_SCALE}
       fighterState={fighterState}
       isMoving={movement.isMoving}
+      isGrounded={movement.isGrounded}
       facingTarget={opponentPos}
       positionRef={movement.position}
     />

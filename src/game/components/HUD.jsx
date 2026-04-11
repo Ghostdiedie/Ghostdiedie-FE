@@ -86,6 +86,7 @@ export function HUD({ playerHp, opponentHp, playerSkill, opponentSkill }) {
         <Sep />
         <div className="flex items-center gap-1">
           <Key k="Q" /><Hint>왼손</Hint>
+          <Key k="E" /><Hint>킥</Hint>
           <Key k="F" /><Hint>오른손</Hint>
         </div>
       </div>
