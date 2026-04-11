@@ -160,6 +160,23 @@ export function useMultiplayer(ws, playerMovement) {
           }
           break
 
+        case 'round_start':
+          // Reset HP/gauge for new round (server is authoritative)
+          if (msg.me?.hp) {
+            playerHp.current = msg.me.hp
+            playerMaxHp.current = msg.me.max_hp ?? msg.me.hp
+          }
+          if (msg.opponent?.hp) {
+            opponentHp.current = msg.opponent.hp
+            opponentMaxHp.current = msg.opponent.max_hp ?? msg.opponent.hp
+          }
+          playerGauge.current = 0
+          opponentGauge.current = 0
+          // Reset fighter states
+          playerState.current = makeFighterState()
+          opponentState.current = makeFighterState()
+          break
+
         case 'game_end':
           gameOver.current = msg
           break

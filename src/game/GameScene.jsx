@@ -155,6 +155,8 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
   const [hudBindings, setHudBindings] = useState(null)
   const [resolvedOpponentFaceUrl, setResolvedOpponentFaceUrl] = useState(() => opponentFaceUrl ?? null)
   const [opponentName, setOpponentName] = useState('')
+  const [roundNumber, setRoundNumber] = useState(1)
+  const [roundWins, setRoundWins] = useState([0, 0]) // [player0Wins, player1Wins]
 
   const cvControls = useCVControls()
   const cvBridge = useLocalCVBridge(cvControls.handleAction)
@@ -202,6 +204,8 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
         setServerClockOffsetMs(nextServerClockOffsetMs)
         setCountdownStartMs(msg.countdown_start_ms ?? (clientNowMs + 1500))
         setCountdownDone(false)
+        setRoundNumber(1)
+        setRoundWins([0, 0])
         if (msg.opponent?.profile_image_url) {
           setResolvedOpponentFaceUrl(msg.opponent.profile_image_url)
         }
@@ -209,6 +213,20 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
           setOpponentName(msg.opponent.name)
         }
         setGameStarted(true)
+      }
+      if (msg.type === 'round_start') {
+        const clientNowMs = Date.now()
+        const nextServerClockOffsetMs = (msg.server_now_ms ?? clientNowMs) - clientNowMs
+        console.log('[GameScene] round_start received', {
+          roundNumber: msg.round_number,
+          roundWins: msg.round_wins,
+          countdownStartMs: msg.countdown_start_ms,
+        })
+        setServerClockOffsetMs(nextServerClockOffsetMs)
+        setCountdownStartMs(msg.countdown_start_ms ?? (clientNowMs + 2000))
+        setCountdownDone(false)
+        setRoundNumber(msg.round_number ?? 2)
+        setRoundWins(msg.round_wins ?? [0, 0])
       }
     }
     socket.addEventListener('message', onMsg)
@@ -273,6 +291,9 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
           cvMode={cvMode}
           cvStatus={cvBridge.status}
           cvLastDetected={cvBridge.lastAction}
+          roundNumber={roundNumber}
+          playerRoundWins={roundWins[playerIndex]}
+          opponentRoundWins={roundWins[1 - playerIndex]}
         />
       )}
     </div>

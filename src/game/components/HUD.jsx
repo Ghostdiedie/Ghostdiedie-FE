@@ -15,6 +15,9 @@ export function HUD({
   cvMode,
   cvStatus,
   cvLastDetected,
+  roundNumber = 1,
+  playerRoundWins = 0,
+  opponentRoundWins = 0,
 }) {
   // Latch max HP on first valid value so the bar doesn't jump
   const playerMaxHpRef = useRef(null)
@@ -56,11 +59,23 @@ export function HUD({
       {/* ── Round (top-center) ── */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col items-center gap-0.5 bg-black/50 border border-white/8 rounded px-5 py-2">
         <span className="text-[9px] font-bold tracking-[0.22em] text-white/35 uppercase">Round</span>
-        <span className="text-[30px] font-extrabold text-white leading-none tracking-wide">01</span>
-        <div className="flex gap-1.5 mt-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-white/80" />
-          <span className="w-1.5 h-1.5 rounded-full bg-white/20" />
-          <span className="w-1.5 h-1.5 rounded-full bg-white/20" />
+        <span className="text-[30px] font-extrabold text-white leading-none tracking-wide">
+          {String(roundNumber).padStart(2, '0')}
+        </span>
+        <div className="flex items-center gap-3 mt-1">
+          {/* Player round wins (left side) */}
+          <div className="flex gap-1">
+            {[0, 1].map(i => (
+              <span key={i} className={`w-2 h-2 rounded-full ${i < playerRoundWins ? 'bg-green-400' : 'bg-white/20'}`} />
+            ))}
+          </div>
+          <span className="w-px h-3 bg-white/15" />
+          {/* Opponent round wins (right side) */}
+          <div className="flex gap-1">
+            {[0, 1].map(i => (
+              <span key={i} className={`w-2 h-2 rounded-full ${i < opponentRoundWins ? 'bg-red-400' : 'bg-white/20'}`} />
+            ))}
+          </div>
         </div>
       </div>
 
