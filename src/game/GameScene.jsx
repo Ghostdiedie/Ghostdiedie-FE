@@ -1,6 +1,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Canvas, useFrame } from '@react-three/fiber'
+import { useGLTF } from '@react-three/drei'
 import { createWebSocket } from '../api/client'
 import { useWebRTC } from './hooks/useWebRTC'
 import { useLocalCVBridge } from './hooks/useLocalCVBridge'
@@ -12,7 +13,10 @@ import { HUD } from './components/HUD'
 import { useCVControls } from './hooks/useCVControls'
 import { usePlayerMovement } from './hooks/usePlayerMovement'
 import { useMultiplayer } from './hooks/useMultiplayer'
-import { ARENA_RADIUS, ARENA_BOUNDARY_MARGIN, FIGHTER_MIN_DISTANCE, SEPARATION_MAX_PUSH } from './constants/game'
+import { ARENA_RADIUS, ARENA_BOUNDARY_MARGIN, FIGHTER_MIN_DISTANCE, SEPARATION_MAX_PUSH, CHARACTER_MODEL_PATHS, CHARACTER_ID_TO_KEY } from './constants/game'
+
+// Preload all character models so useGLTF never suspends when the opponent's character key changes
+Object.values(CHARACTER_MODEL_PATHS).forEach(path => useGLTF.preload(path))
 
 function clampToArena(pos) {
   const limit = ARENA_RADIUS - ARENA_BOUNDARY_MARGIN
@@ -422,6 +426,25 @@ function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharac
   const movement = usePlayerMovement(controls.keys, opponentPosRef)
   const mp = useMultiplayer(ws, movement)
 
+  // Track opponent character key as proper React state so model loads immediately
+  // (reading mp.opponentCharacterKey.current in JSX can cause a stale-ref mid-game surprise)
+  const [opponentCharKey, setOpponentCharKey] = useState('red')
+  useEffect(() => {
+    if (!ws) return
+    function onMsg(e) {
+      let msg
+      try { msg = JSON.parse(e.data) } catch { return }
+      if (msg.type === 'game_start' && msg.opponent?.character_id) {
+        setOpponentCharKey(CHARACTER_ID_TO_KEY[msg.opponent.character_id] || 'red')
+      }
+      if (msg.type === 'character_select' && msg.characterKey) {
+        setOpponentCharKey(msg.characterKey)
+      }
+    }
+    ws.addEventListener('message', onMsg)
+    return () => ws.removeEventListener('message', onMsg)
+  }, [ws])
+
   // Send our character selection to opponent on first connect
   const sentCharRef = useRef(false)
   useEffect(() => {
@@ -498,7 +521,7 @@ function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharac
         fighterState={mp.opponentState}
         playerPos={movement.position}
         faceImageUrl={opponentFaceUrl}
-        characterKey={mp.opponentCharacterKey?.current || 'red'}
+        characterKey={opponentCharKey}
         gameResult={opponentResult}
       />
 
