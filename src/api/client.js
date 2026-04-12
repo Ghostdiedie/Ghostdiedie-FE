@@ -74,7 +74,8 @@ export async function getRoomStatus(code) {
 
 // ── WebSocket ─────────────────────────────────
 
-export function createWebSocket(roomCode) {
+export function createWebSocket(roomCode, userId) {
   const wsBase = API_BASE.replace(/^https/, 'wss').replace(/^http/, 'ws')
-  return new WebSocket(`${wsBase}/ws/${roomCode}`)
+  const userParam = userId ? `?user_id=${encodeURIComponent(userId)}` : ''
+  return new WebSocket(`${wsBase}/ws/${roomCode}${userParam}`)
 }

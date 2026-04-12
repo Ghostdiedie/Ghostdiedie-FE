@@ -219,7 +219,7 @@ function WaitingForOpponentOverlay() {
   )
 }
 
-export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl, playerCharacterKey = 'blue', arenaKey = 'arena' }) {
+export function GameScene({ roomCode, userId, playerName, playerFaceUrl, opponentFaceUrl, playerCharacterKey = 'blue', arenaKey = 'arena' }) {
   const navigate = useNavigate()
   const [ws, setWs] = useState(null)
   const [gameStarted, setGameStarted] = useState(false)
@@ -249,7 +249,7 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
   useEffect(() => {
     if (!roomCode) return
 
-    const socket = createWebSocket(roomCode)
+    const socket = createWebSocket(roomCode, userId)
 
     socket.addEventListener('open', () => {
       console.log('[GameScene] ws open', { roomCode })
@@ -337,7 +337,7 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
       socket.close()
       console.log('[GameScene] ws closed', { roomCode })
     }
-  }, [roomCode, navigate])
+  }, [roomCode, userId, navigate])
 
   const showLoading = !assetsLoaded
   const showWaiting = assetsLoaded && !gameStarted

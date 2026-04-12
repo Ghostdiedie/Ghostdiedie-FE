@@ -167,6 +167,7 @@ export default function AppFlow() {
           <Guard ok={roomCode && selectedCharacter} fallback="/start">
             <GameScene
               roomCode={roomCode}
+              userId={userId}
               playerName={playerName}
               playerFaceUrl={playerFaceUrl}
               opponentFaceUrl={opponentFaceUrl}
