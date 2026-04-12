@@ -16,6 +16,24 @@ const PYTHON_BUNDLE_DIR = path.join(process.resourcesPath, 'python')
 let mainWindow = null
 let cvProcess = null
 
+function ensureDir(target) {
+  fs.mkdirSync(target, { recursive: true })
+}
+
+function getCvCacheEnv() {
+  const cacheRoot = path.join(app.getPath('userData'), 'cv-runtime-cache')
+  const matplotlibDir = path.join(cacheRoot, 'matplotlib')
+  const xdgCacheDir = path.join(cacheRoot, 'xdg-cache')
+
+  ensureDir(matplotlibDir)
+  ensureDir(xdgCacheDir)
+
+  return {
+    MPLCONFIGDIR: matplotlibDir,
+    XDG_CACHE_HOME: xdgCacheDir,
+  }
+}
+
 function readBundledPythonManifest() {
   const manifestPath = path.join(PYTHON_BUNDLE_DIR, 'ghostdiedie-python.json')
   if (!app.isPackaged || !fs.existsSync(manifestPath)) {
@@ -150,6 +168,7 @@ async function startCvBridge() {
     env: {
       ...process.env,
       ...(launch.env || {}),
+      ...getCvCacheEnv(),
       CV_BRIDGE_HOST: CV_HOST,
       CV_BRIDGE_PORT: String(CV_PORT),
       CV_SHOW_WINDOW: process.env.CV_SHOW_WINDOW || '0',

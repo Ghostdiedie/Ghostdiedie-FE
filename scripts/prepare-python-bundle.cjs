@@ -76,6 +76,14 @@ function ensureDir(target) {
   fs.mkdirSync(target, { recursive: true })
 }
 
+function replaceSymlinkWithDirectory(target) {
+  if (!exists(target)) return
+  const stat = fs.lstatSync(target)
+  if (!stat.isSymbolicLink()) return
+  fs.rmSync(target, { recursive: true, force: true })
+  ensureDir(target)
+}
+
 function resolveExecutableRelative(pythonHome, version) {
   const candidates = process.platform === 'win32'
     ? ['python.exe']
@@ -116,11 +124,17 @@ function main() {
 
   const sourceSitePackages = pythonInfo.venvSitePackages.filter(target => exists(target))
   const destinationSitePackages = path.join(PYTHON_STAGING_DIR, path.relative(pythonInfo.basePrefix, pythonInfo.defaultSitePackages))
+  replaceSymlinkWithDirectory(destinationSitePackages)
   ensureDir(destinationSitePackages)
 
   for (const sourceSitePackage of sourceSitePackages) {
     console.log('[prepare:cv-runtime] merging site-packages from', sourceSitePackage)
-    copyDirectory(sourceSitePackage, destinationSitePackages)
+    for (const entry of fs.readdirSync(sourceSitePackage)) {
+      copyDirectory(
+        path.join(sourceSitePackage, entry),
+        path.join(destinationSitePackages, entry)
+      )
+    }
   }
 
   const manifest = {
