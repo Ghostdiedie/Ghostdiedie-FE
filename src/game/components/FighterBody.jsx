@@ -136,10 +136,25 @@ export function FighterBody({
 
   // Attach face plane directly to the head bone so it follows animations.
   useEffect(() => {
-    const headBone = clonedScene.getObjectByName('mixamorig:Head')
+    // Try exact name first, then fall back to searching all bones
+    let headBone = clonedScene.getObjectByName('mixamorig:Head')
     if (!headBone) {
-      console.warn('[FighterBody] mixamorig:Head bone not found', { modelPath })
-      return
+      // Log all node names so we can find the correct head bone name
+      const allNames = []
+      clonedScene.traverse((node) => { allNames.push(`${node.type}:${node.name}`) })
+      console.warn('[FighterBody] mixamorig:Head not found. All nodes:', allNames.join('\n'), { modelPath })
+
+      // Fallback: find any bone whose name includes "Head" (case-insensitive)
+      clonedScene.traverse((node) => {
+        if (!headBone && node.isBone && node.name.toLowerCase().includes('head')) {
+          headBone = node
+        }
+      })
+      if (headBone) {
+        console.log('[FighterBody] fallback head bone found:', headBone.name)
+      } else {
+        return
+      }
     }
 
     const existing = headBone.getObjectByName('__facePlane__')
