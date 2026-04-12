@@ -8,6 +8,7 @@ import LobbyPage from '../room/LobbyPage'
 import CreateRoom from '../room/CreateRoom'
 import JoinRoom from '../room/JoinRoom'
 import CharacterSelect from '../room/CharacterSelect'
+import ArenaSelect from '../room/ArenaSelect'
 
 /**
  * Route guard — redirects to fallback if condition is falsy.
@@ -25,6 +26,8 @@ export default function AppFlow() {
   const [opponentFaceUrl, setOpponentFaceUrl] = useState(null)
   const [roomCode, setRoomCode] = useState(null)
   const [selectedCharacter, setSelectedCharacter] = useState(null)
+  const [selectedArena, setSelectedArena] = useState('arena')
+  const [isOwner, setIsOwner] = useState(false)
   const navigate = useNavigate()
 
   function handleFaceUploaded(faceId, faceUrl) {
@@ -32,8 +35,23 @@ export default function AppFlow() {
     setPlayerFaceUrl(faceUrl)
   }
 
-  function handleRoomReady(code) {
+  // Called by CreateRoom (room owner)
+  function handleOwnerRoomReady(code) {
+    setIsOwner(true)
     setRoomCode(code)
+    navigate('/arena')
+  }
+
+  // Called by JoinRoom (guest)
+  function handleGuestRoomReady(code) {
+    setIsOwner(false)
+    setRoomCode(code)
+    navigate('/arena')
+  }
+
+  // Called by ArenaSelect — arenaKey is null for guest (will be synced via WS)
+  function handleArenaSelected(arenaKey) {
+    if (arenaKey) setSelectedArena(arenaKey)
     navigate('/select')
   }
 
@@ -86,7 +104,7 @@ export default function AppFlow() {
               playerFaceId={playerFaceId}
               onFaceUploaded={handleFaceUploaded}
               onOpponentFaceUrl={setOpponentFaceUrl}
-              onGameStart={handleRoomReady}
+              onGameStart={handleOwnerRoomReady}
               onBack={() => navigate('/start')}
             />
           </Guard>
@@ -105,7 +123,21 @@ export default function AppFlow() {
               playerFaceId={playerFaceId}
               onFaceUploaded={handleFaceUploaded}
               onOpponentFaceUrl={setOpponentFaceUrl}
-              onJoined={handleRoomReady}
+              onJoined={handleGuestRoomReady}
+              onBack={() => navigate('/start')}
+            />
+          </Guard>
+        }
+      />
+
+      {/* /arena — must have roomCode */}
+      <Route
+        path="/arena"
+        element={
+          <Guard ok={roomCode} fallback="/start">
+            <ArenaSelect
+              isOwner={isOwner}
+              onArenaSelected={handleArenaSelected}
               onBack={() => navigate('/start')}
             />
           </Guard>
@@ -139,6 +171,7 @@ export default function AppFlow() {
               playerFaceUrl={playerFaceUrl}
               opponentFaceUrl={opponentFaceUrl}
               playerCharacterKey={selectedCharacter || 'blue'}
+              arenaKey={selectedArena}
             />
           </Guard>
         }

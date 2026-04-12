@@ -6,6 +6,7 @@ import { createWebSocket } from '../api/client'
 import { useWebRTC } from './hooks/useWebRTC'
 import { useLocalCVBridge } from './hooks/useLocalCVBridge'
 import { Arena } from './components/Arena'
+import { Arena2 } from './components/Arena2'
 import { PlayerCharacter } from './components/PlayerCharacter'
 import { OpponentCharacter } from './components/OpponentCharacter'
 import { FollowCamera } from './components/FollowCamera'
@@ -218,7 +219,7 @@ function WaitingForOpponentOverlay() {
   )
 }
 
-export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl, playerCharacterKey = 'blue' }) {
+export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl, playerCharacterKey = 'blue', arenaKey = 'arena' }) {
   const navigate = useNavigate()
   const [ws, setWs] = useState(null)
   const [gameStarted, setGameStarted] = useState(false)
@@ -355,6 +356,7 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
               playerFaceUrl={playerFaceUrl}
               opponentFaceUrl={resolvedOpponentFaceUrl}
               playerCharacterKey={playerCharacterKey}
+              arenaKey={arenaKey}
               onHudBindings={setHudBindings}
               controls={cvControls}
               playerResult={gameEndInfo ? (gameEndInfo.winnerIndex === playerIndex ? 'win' : 'lose') : null}
@@ -419,12 +421,15 @@ export function GameScene({ roomCode, playerName, playerFaceUrl, opponentFaceUrl
   )
 }
 
-function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharacterKey, onHudBindings, controls, playerResult = null, opponentResult = null, fightReady = false }) {
+function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharacterKey, arenaKey = 'arena', onHudBindings, controls, playerResult = null, opponentResult = null, fightReady = false }) {
   // Opponent position ref shared between usePlayerMovement and useMultiplayer
   const opponentPosRef = useRef([0, 0, -5])
 
   const movement = usePlayerMovement(controls.keys, opponentPosRef)
   const mp = useMultiplayer(ws, movement)
+
+  // Active arena — initialized from prop, updated via WS for guest
+  const [activeArena, setActiveArena] = useState(arenaKey)
 
   // Track opponent character key as proper React state so model loads immediately
   // (reading mp.opponentCharacterKey.current in JSX can cause a stale-ref mid-game surprise)
@@ -434,16 +439,31 @@ function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharac
     function onMsg(e) {
       let msg
       try { msg = JSON.parse(e.data) } catch { return }
-      if (msg.type === 'game_start' && msg.opponent?.character_id) {
-        setOpponentCharKey(CHARACTER_ID_TO_KEY[msg.opponent.character_id] || 'red')
+      if (msg.type === 'game_start') {
+        if (msg.opponent?.character_id) {
+          setOpponentCharKey(CHARACTER_ID_TO_KEY[msg.opponent.character_id] || 'red')
+        }
+        // Owner (player_index 0) broadcasts arena selection to guest
+        if (msg.player_index === 0) {
+          setTimeout(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'arena_select', arenaKey }))
+              console.log('[SceneWithMultiplayer] sent arena_select', arenaKey)
+            }
+          }, 200)
+        }
       }
       if (msg.type === 'character_select' && msg.characterKey) {
         setOpponentCharKey(msg.characterKey)
       }
+      if (msg.type === 'arena_select' && msg.arenaKey) {
+        console.log('[SceneWithMultiplayer] received arena_select', msg.arenaKey)
+        setActiveArena(msg.arenaKey)
+      }
     }
     ws.addEventListener('message', onMsg)
     return () => ws.removeEventListener('message', onMsg)
-  }, [ws])
+  }, [ws, arenaKey])
 
   // Send our character selection to opponent on first connect
   const sentCharRef = useRef(false)
@@ -484,29 +504,50 @@ function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharac
     if (events.headAttack) mp.playerHeadAttack()
   })
 
+  const isSynthwave = activeArena === 'arena2'
+
   return (
     <>
-      <ambientLight intensity={0.7} color="#c8b888" />
-      <directionalLight
-        position={[2, 8, 4]}
-        intensity={2.5}
-        color="#fff4d0"
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-camera-near={1}
-        shadow-camera-far={30}
-        shadow-camera-left={-15}
-        shadow-camera-right={15}
-        shadow-camera-top={15}
-        shadow-camera-bottom={-15}
-      />
-      <pointLight position={[-6, 6, -4]} intensity={20} color="#ffe8a0" distance={25} decay={2} />
-      <pointLight position={[6, 6, 4]} intensity={20} color="#ffe8a0" distance={25} decay={2} />
-      <fog attach="fog" args={['#1a1612', 38, 70]} />
-      <color attach="background" args={['#161410']} />
+      {isSynthwave ? (
+        <>
+          <ambientLight intensity={0.25} color="#1a0030" />
+          <directionalLight position={[0, 10, 0]} intensity={0.8} color="#ffffff" castShadow
+            shadow-mapSize-width={1024} shadow-mapSize-height={1024}
+            shadow-camera-near={1} shadow-camera-far={30}
+            shadow-camera-left={-15} shadow-camera-right={15}
+            shadow-camera-top={15} shadow-camera-bottom={-15}
+          />
+          <pointLight position={[-8, 5, 0]} intensity={30} color="#00e5ff" distance={28} decay={2} />
+          <pointLight position={[8, 5, 0]} intensity={30} color="#ff2d78" distance={28} decay={2} />
+          <pointLight position={[0, 4, -6]} intensity={20} color="#9f00ff" distance={20} decay={2} />
+          <fog attach="fog" args={['#04040e', 30, 60]} />
+          <color attach="background" args={['#04040e']} />
+        </>
+      ) : (
+        <>
+          <ambientLight intensity={0.7} color="#c8b888" />
+          <directionalLight
+            position={[2, 8, 4]}
+            intensity={2.5}
+            color="#fff4d0"
+            castShadow
+            shadow-mapSize-width={1024}
+            shadow-mapSize-height={1024}
+            shadow-camera-near={1}
+            shadow-camera-far={30}
+            shadow-camera-left={-15}
+            shadow-camera-right={15}
+            shadow-camera-top={15}
+            shadow-camera-bottom={-15}
+          />
+          <pointLight position={[-6, 6, -4]} intensity={20} color="#ffe8a0" distance={25} decay={2} />
+          <pointLight position={[6, 6, 4]} intensity={20} color="#ffe8a0" distance={25} decay={2} />
+          <fog attach="fog" args={['#1a1612', 38, 70]} />
+          <color attach="background" args={['#161410']} />
+        </>
+      )}
 
-      <Arena />
+      {isSynthwave ? <Arena2 /> : <Arena />}
 
       <PlayerCharacter
         movement={movement}
