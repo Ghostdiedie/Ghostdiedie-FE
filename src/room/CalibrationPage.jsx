@@ -3,24 +3,111 @@ import Button from '../components/Button'
 import { getRoomStatus } from '../api/client'
 import backgroundImg from '../assets/background/background.webp'
 
+const COUNTDOWN_SEC = 5
+const CAL_DURATION_MS = 2600  // 75프레임 @ 30fps ≈ 2.5초 + 여유
+
 function StatusDot({ active, color = 'bg-green-400' }) {
   return <span className={`h-2.5 w-2.5 rounded-full ${active ? color : 'bg-white/20'}`} />
+}
+
+function PersonSilhouette() {
+  return (
+    <svg
+      viewBox="0 0 160 380"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-full w-auto"
+    >
+      {/* 사람 몸 윤곽선 — 하나의 연속된 path */}
+      <path
+        d="
+          M80,4
+          C95,4 110,16 110,36
+          C110,56 97,68 80,68
+          C63,68 50,56 50,36
+          C50,16 65,4 80,4
+          Z
+
+          M57,72
+          C48,74 40,80 36,90
+          L20,130
+          C18,136 22,142 28,142
+          L38,142
+          L30,200
+          C28,210 32,218 40,220
+          L44,220
+          L36,300
+          C34,312 40,322 50,324
+          L54,324
+          C58,324 62,320 62,316
+          L68,240
+          L80,240
+          L92,240
+          L98,316
+          C98,320 102,324 106,324
+          L110,324
+          C120,322 126,312 124,300
+          L116,220
+          L120,220
+          C128,218 132,210 130,200
+          L122,142
+          L132,142
+          C138,142 142,136 140,130
+          L124,90
+          C120,80 112,74 103,72
+          C99,78 90,82 80,82
+          C70,82 61,78 57,72
+          Z
+        "
+        stroke="white"
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        strokeDasharray="10 5"
+        fill="white"
+        fillOpacity="0.05"
+        opacity="0.75"
+      />
+    </svg>
+  )
 }
 
 export default function CalibrationPage({ roomCode, userId, playerName, playerFaceUrl, cvBridge, onReady, onBothReady }) {
   const [phase, setPhase] = useState('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const [remoteReady, setRemoteReady] = useState(false)
+  const [countdown, setCountdown] = useState(null)  // null = 전, 0 = 캘리브레이션 중
+  const [calDone, setCalDone] = useState(false)
   const pollRef = useRef(null)
+  const countdownRef = useRef(null)
+  const calDoneRef = useRef(null)
   const recalibratedRef = useRef(false)
 
-  useEffect(() => () => clearInterval(pollRef.current), [])
+  useEffect(() => () => {
+    clearInterval(pollRef.current)
+    clearInterval(countdownRef.current)
+    clearTimeout(calDoneRef.current)
+  }, [])
 
-  // 페이지 진입 후 CV 연결되면 재캘리브레이션 트리거 (최초 1회)
+  // CV 연결되면 카운트다운 시작 (최초 1회)
   useEffect(() => {
     if (cvBridge.status === 'ready' && !recalibratedRef.current) {
       recalibratedRef.current = true
-      cvBridge.send({ type: 'recalibrate' })
+      setCountdown(COUNTDOWN_SEC)
+
+      let remaining = COUNTDOWN_SEC
+      countdownRef.current = setInterval(() => {
+        remaining -= 1
+        if (remaining <= 0) {
+          clearInterval(countdownRef.current)
+          setCountdown(0)
+          setCalDone(false)
+          cvBridge.send({ type: 'recalibrate' })
+          calDoneRef.current = setTimeout(() => setCalDone(true), CAL_DURATION_MS)
+        } else {
+          setCountdown(remaining)
+        }
+      }, 1000)
     }
   }, [cvBridge.status])
 
@@ -70,6 +157,8 @@ export default function CalibrationPage({ roomCode, userId, playerName, playerFa
   }
 
   const cvReady = cvBridge.status === 'ready'
+  const isCountingDown = countdown !== null && countdown > 0
+  const isCalibrating = countdown === 0 && !calDone
 
   return (
     <div
@@ -135,7 +224,7 @@ export default function CalibrationPage({ roomCode, userId, playerName, playerFa
             )}
             <Button
               onClick={handleReady}
-              disabled={!cvReady || phase === 'submitting' || phase === 'waiting'}
+              disabled={!cvReady || isCountingDown || isCalibrating || phase === 'submitting' || phase === 'waiting'}
               className="w-full justify-center"
             >
               {phase === 'submitting' ? 'Checking...' : phase === 'waiting' ? 'Waiting...' : 'Ready'}
@@ -149,15 +238,45 @@ export default function CalibrationPage({ roomCode, userId, playerName, playerFa
               <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-white/35">Live CV</p>
               <p className="mt-2 text-lg font-bold text-white">Preview & quick check</p>
             </div>
-            {cvBridge.lastAction?.action && (
+            {cvBridge.lastAction?.action && !isCountingDown && !isCalibrating && (
               <div className="rounded-full border border-green-400/30 bg-green-400/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-green-300">
                 {cvBridge.lastAction.action}
               </div>
             )}
           </div>
 
-          <div className="aspect-video overflow-hidden rounded-[24px] border border-white/10 bg-black">
+          {/* 카메라 피드 + 오버레이 */}
+          <div className="relative aspect-video overflow-hidden rounded-[24px] border border-white/10 bg-black">
             <canvas ref={cvBridge.attachDisplayCanvasRef} className="h-full w-full object-cover" />
+
+            {/* 카운트다운 오버레이 */}
+            {(isCountingDown || isCalibrating || calDone) && (
+              <div className={`absolute inset-0 flex flex-col items-end justify-end transition-all duration-500 ${calDone ? 'bg-black/30' : 'bg-black/55'}`}>
+                {/* 사람 윤곽선 — 화면 중앙 */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <PersonSilhouette />
+                </div>
+                {/* 텍스트 — 하단 */}
+                <div className="relative z-10 w-full pb-4 text-center">
+                  {isCountingDown ? (
+                    <>
+                      <p className="text-xs font-semibold uppercase tracking-widest text-white/70">이 윤곽선 안에 맞춰 서세요</p>
+                      <p className="text-6xl font-black text-white drop-shadow-lg">{countdown}</p>
+                    </>
+                  ) : isCalibrating ? (
+                    <>
+                      <p className="text-base font-bold text-yellow-300">캘리브레이션 중...</p>
+                      <p className="text-xs text-white/50">가만히 서계세요</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xl font-black text-green-400">✓ 캘리브레이션 완료</p>
+                      <p className="text-xs text-white/50">Ready 버튼을 눌러주세요</p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-white/55">
