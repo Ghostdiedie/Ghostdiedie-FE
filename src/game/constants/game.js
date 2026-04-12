@@ -1,7 +1,4 @@
-import characterBlack from '../../assets/characters/character_black.glb?url'
-import characterBlue from '../../assets/characters/character_blue.glb?url'
-import characterRed from '../../assets/characters/character_red.glb?url'
-import characterWhite from '../../assets/characters/character_white.glb?url'
+const ASSET_BASE = 'https://pub-47d048287a894262a754bbc1e905b4ff.r2.dev'
 
 // Arena — circular colosseum
 export const ARENA_RADIUS = 12
@@ -33,10 +30,10 @@ export const OPPONENT_POS = [0, 0, -5]
 
 // Character models
 export const CHARACTER_MODEL_PATHS = {
-  black: characterBlack,
-  blue: characterBlue,
-  red: characterRed,
-  white: characterWhite,
+  black: `${ASSET_BASE}/character_black.glb`,
+  blue: `${ASSET_BASE}/character_blue.glb`,
+  red: `${ASSET_BASE}/character_red.glb`,
+  white: `${ASSET_BASE}/character_white.glb`,
 }
 
 // Map character_id (from backend) to model key

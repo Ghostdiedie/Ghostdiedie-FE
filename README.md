@@ -24,7 +24,6 @@ It renders the 3D battle scene with React + Three.js and converts actions from t
 
 ```text
 Ghostdiedie-FE/
-├── diedie              # One-command startup script (CV + FE together)
 ├── src/
 │   ├── app/            # AppFlow (routing & state management)
 │   ├── api/            # Backend REST/WebSocket client
@@ -54,15 +53,17 @@ Ghostdiedie-FE/
 ### Run
 
 ```bash
-# Start both the CV bridge and frontend dev server
 npm run dev
 ```
 
-This command runs the `./diedie` script:
-1. Create the CV virtual environment and install dependencies (first run only)
-2. Install FE `node_modules` (first run only)
-3. Start the CV bridge (`ws://127.0.0.1:8765`)
-4. Start the Vite dev server (`http://localhost:5173`)
+This starts the Vite dev server at `http://localhost:5173`.
+If you want webcam motion controls, run the local CV bridge separately from `Ghostdiedie-CV`.
+
+```bash
+cd ../Ghostdiedie-CV
+source .venv/bin/activate
+python main.py
+```
 
 ### Environment Variables
 
@@ -70,10 +71,7 @@ This command runs the `./diedie` script:
 |---|---|---|
 | `VITE_API_BASE_URL` | `https://api.ghostdiedie.club` | Backend API URL |
 | `VITE_API_KEY` | (none) | API auth key |
-| `CV_BRIDGE_HOST` | `127.0.0.1` | CV bridge host |
-| `CV_BRIDGE_PORT` | `8765` | CV bridge port |
-| `CV_SHOW_WINDOW` | `0` | Show the CV debug window when set to `1` |
-| `FE_DEV_PORT` | `5173` | Frontend dev server port |
+| `VITE_CV_BRIDGE_URL` | `ws://127.0.0.1:8765` | Local CV bridge WebSocket URL |
 
 ---
 

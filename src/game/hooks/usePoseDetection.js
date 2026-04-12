@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PoseLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
-import { PunchDetector, WalkDetector, JumpDetector, KickDetector, HeadbuttDetector } from '../cv/detectors'
+import { PunchDetector, WalkDetector, JumpDetector, KickDetector, HeadbuttDetector, CAL_FRAMES } from '../cv/detectors'
 
 const POSE_CONNECTIONS = [
   [11, 13], [13, 15], [12, 14], [14, 16],
@@ -294,9 +294,11 @@ function drawOverlay(video, canvas, landmarks, detectors, gameReady) {
     }
 
     // ── Wrist circles (colored, like Python punch.draw) ──
+    // Python (flipped frame): LEFT_WRIST (15) = screen-right → orange-red; RIGHT_WRIST (16) = screen-left → blue
+    // JS  (mirrored display): RIGHT_WRIST (16) = screen-right → orange-red; LEFT_WRIST  (15) = screen-left → blue
     const wrists = [
-      { idx: 15, color: 'rgb(255, 100, 0)' },  // right hand (orange-red)
-      { idx: 16, color: 'rgb(0, 150, 255)' },   // left hand (blue)
+      { idx: 16, color: 'rgb(255, 100, 0)' },  // RIGHT_WRIST = screen-right = orange-red
+      { idx: 15, color: 'rgb(0, 150, 255)' },   // LEFT_WRIST  = screen-left  = blue
     ]
     for (const { idx, color } of wrists) {
       const p = landmarks[idx]
@@ -314,12 +316,14 @@ function drawOverlay(video, canvas, landmarks, detectors, gameReady) {
     }
 
     // ── Joint labels ──
+    // Python (flipped frame): 'R.Shoulder' → LEFT_SHOULDER because LEFT = screen-right after flip.
+    // JS  (mirrored display): 'R.Shoulder' → RIGHT_SHOULDER (12) which appears on screen-right after mirror.
     const JOINT_LABELS = [
-      ['R.Shoulder', 11], ['L.Shoulder', 12],
-      ['R.Elbow', 13],    ['L.Elbow', 14],
-      ['R.Wrist', 15],    ['L.Wrist', 16],
-      ['R.Hip', 23],       ['L.Hip', 24],
-      ['R.Knee', 25],      ['L.Knee', 26],
+      ['R.Shoulder', 12], ['L.Shoulder', 11],
+      ['R.Elbow',    14], ['L.Elbow',    13],
+      ['R.Wrist',    16], ['L.Wrist',    15],
+      ['R.Hip',      24], ['L.Hip',      23],
+      ['R.Knee',     26], ['L.Knee',     25],
     ]
     ctx.font = '10px sans-serif'
     for (const [jLabel, idx] of JOINT_LABELS) {
@@ -333,7 +337,7 @@ function drawOverlay(video, canvas, landmarks, detectors, gameReady) {
   // ── Calibration progress bar (yellow) OR Depth gauge bar ──
   if (walk && !walk.calibrated) {
     const calLen = walk.calBuf?.length ?? 0
-    const progress = (calLen / 60) * w
+    const progress = (calLen / CAL_FRAMES) * w
 
     ctx.fillStyle = 'rgb(255, 255, 0)'
     ctx.fillRect(0, h - 10, progress, 10)

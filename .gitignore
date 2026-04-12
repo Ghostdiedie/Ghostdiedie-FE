@@ -4,22 +4,6 @@ node_modules/
 # Build output
 dist/
 dist-ssr/
-dist-electron/
-.electron-bundle/
-electron-dist/
-mac/
-mac-arm64/
-win-unpacked/
-win-ia32-unpacked/
-win-arm64-unpacked/
-*.app
-*.asar
-*.dmg
-*.exe
-*.zip
-*.blockmap
-builder-debug.yml
-latest*.yml
 
 # Vite cache
 .vite/

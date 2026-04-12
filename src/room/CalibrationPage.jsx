@@ -250,11 +250,21 @@ export default function CalibrationPage({ roomCode, userId, playerName, playerFa
           <div className="relative aspect-video overflow-hidden rounded-[24px] border border-white/10 bg-black">
             <canvas ref={cvBridge.attachDisplayCanvasRef} className="h-full w-full object-cover" />
 
-            {/* 카운트다운 오버레이 */}
+            {/* 카운트다운/캘리브레이션 오버레이
+                — CV 캔버스(게이지바·손목·스켈레톤)가 아래에서 보여야 하므로
+                  calibrating 중에는 최대한 투명하게 유지 */}
             {(isCountingDown || isCalibrating || calDone) && (
-              <div className={`absolute inset-0 flex flex-col items-end justify-end transition-all duration-500 ${calDone ? 'bg-black/30' : 'bg-black/55'}`}>
-                {/* 사람 윤곽선 — 화면 중앙 */}
-                <div className="absolute inset-0 flex items-center justify-center">
+              <div
+                className={`absolute inset-0 flex flex-col items-end justify-end transition-all duration-500 ${
+                  calDone
+                    ? 'bg-black/25'
+                    : isCalibrating
+                      ? 'bg-black/10'   // 거의 투명 — 게이지바 등이 잘 보임
+                      : 'bg-black/30'   // 카운트다운 중
+                }`}
+              >
+                {/* 사람 윤곽선 — 화면 중앙 (calibrating 중에는 투명하게) */}
+                <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-500 ${isCalibrating ? 'opacity-20' : 'opacity-70'}`}>
                   <PersonSilhouette />
                 </div>
                 {/* 텍스트 — 하단 */}
@@ -266,12 +276,12 @@ export default function CalibrationPage({ roomCode, userId, playerName, playerFa
                     </>
                   ) : isCalibrating ? (
                     <>
-                      <p className="text-base font-bold text-yellow-300">Calibrating...</p>
-                      <p className="text-xs text-white/50">Hold still</p>
+                      <p className="text-base font-bold text-yellow-300 drop-shadow-lg">Calibrating...</p>
+                      <p className="text-xs text-white/60">Hold still — watch the gauge bar</p>
                     </>
                   ) : (
                     <>
-                      <p className="text-xl font-black text-green-400">✓ Calibration Complete</p>
+                      <p className="text-xl font-black text-green-400 drop-shadow-lg">✓ Calibration Complete</p>
                       <p className="text-xs text-white/50">Press the Ready button</p>
                     </>
                   )}
