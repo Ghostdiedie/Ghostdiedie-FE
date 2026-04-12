@@ -127,42 +127,52 @@ export function FighterBody({
       if (node.isMesh) {
         node.castShadow = true
         node.receiveShadow = false
+        // Hide the GLB's built-in FacePlate — it sits inside the head mesh and gets z-clipped.
+        // We render a runtime plane parented to the head bone instead.
+        if (node.name === 'FacePlate') node.visible = false
       }
     })
   }, [clonedScene])
 
-  // Apply face texture directly onto the GLB's FacePlate mesh
+  // Attach face plane directly to the head bone so it follows animations.
   useEffect(() => {
-    const facePlate = clonedScene.getObjectByName('FacePlate')
-    if (!facePlate) {
-      console.warn('[FighterBody] FacePlate mesh not found in model', { modelPath })
+    const headBone = clonedScene.getObjectByName('mixamorig:Head')
+    if (!headBone) {
+      console.warn('[FighterBody] mixamorig:Head bone not found', { modelPath })
       return
     }
 
-    if (!faceImageUrl) {
-      facePlate.visible = false
-      return
-    }
+    const existing = headBone.getObjectByName('__facePlane__')
+    if (existing) headBone.remove(existing)
+
+    if (!faceImageUrl) return
 
     const texture = new THREE.TextureLoader().load(faceImageUrl)
     texture.colorSpace = THREE.SRGBColorSpace
 
+    // Radius and offset are in head bone local space (Blender cm units).
+    // FacePlate confirmed at ~[0, 14, 18.3] cm relative to the head bone origin.
+    const geo = new THREE.CircleGeometry(13, 32)
     const mat = new THREE.MeshStandardMaterial({
       map: texture,
       transparent: true,
       depthWrite: false,
       side: THREE.DoubleSide,
-      roughness: 0.7,
+      roughness: 0.6,
       metalness: 0,
     })
-
-    const prevMaterial = facePlate.material
-    facePlate.material = mat
-    facePlate.visible = true
-    console.log('[FighterBody] face texture applied to FacePlate', { modelPath, faceLength: faceImageUrl.length })
+    const plane = new THREE.Mesh(geo, mat)
+    plane.name = '__facePlane__'
+    plane.renderOrder = 1
+    plane.position.set(0, 14, 18.3)
+    // CircleGeometry normal = +Z. In head bone local space after Mixamo export,
+    // local +Z points toward the character's front — no extra rotation needed.
+    headBone.add(plane)
+    console.log('[FighterBody] face plane attached', { bone: headBone.name, modelPath, faceLength: faceImageUrl.length })
 
     return () => {
-      facePlate.material = prevMaterial
+      headBone.remove(plane)
+      geo.dispose()
       mat.dispose()
       texture.dispose()
     }
