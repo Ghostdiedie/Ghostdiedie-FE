@@ -58,13 +58,46 @@ function FighterCard({ character, selected, faceUrl, onClick }) {
   )
 }
 
-export default function CharacterSelect({ roomCode, playerFaceUrl, onConfirm, onBothSelected }) {
+export default function CharacterSelect({ roomCode, userId, playerFaceUrl, onConfirm, onBothSelected }) {
   const [selected, setSelected] = useState('blue')
   const [phase, setPhase] = useState('idle')
   const [errorMsg, setErrorMsg] = useState('')
+  const [resolvedFaceUrl, setResolvedFaceUrl] = useState(playerFaceUrl || null)
   const pollRef = useRef(null)
 
   useEffect(() => () => clearInterval(pollRef.current), [])
+
+  useEffect(() => {
+    setResolvedFaceUrl(playerFaceUrl || null)
+  }, [playerFaceUrl])
+
+  useEffect(() => {
+    if (resolvedFaceUrl || !roomCode || !userId) return
+
+    let cancelled = false
+
+    async function loadFaceFallback() {
+      try {
+        const status = await getRoomStatus(roomCode)
+        if (cancelled) return
+
+        const mine = status.owner?.user_id === userId
+          ? status.owner
+          : status.guest?.user_id === userId
+            ? status.guest
+            : null
+
+        if (mine?.profile_image_url) {
+          setResolvedFaceUrl(mine.profile_image_url)
+        }
+      } catch {
+        // Ignore fallback failures. Character selection can still proceed.
+      }
+    }
+
+    loadFaceFallback()
+    return () => { cancelled = true }
+  }, [resolvedFaceUrl, roomCode, userId])
 
   function startPolling() {
     clearInterval(pollRef.current)
@@ -126,24 +159,24 @@ export default function CharacterSelect({ roomCode, playerFaceUrl, onConfirm, on
             key={char.key}
             character={char}
             selected={selected === char.key}
-            faceUrl={playerFaceUrl}
+            faceUrl={resolvedFaceUrl}
             onClick={() => setSelected(char.key)}
           />
         ))}
       </div>
 
-      {/* Start Game button */}
+      {/* Continue button */}
       <div className="relative z-10 flex flex-col items-center gap-3 pb-8">
         {errorMsg && <p className="text-sm text-red-400">{errorMsg}</p>}
         {phase === 'waiting' && (
-          <p className="text-sm text-gray-300">Waiting for opponent to press Start Game...</p>
+          <p className="text-sm text-gray-300">Waiting for opponent to continue...</p>
         )}
         <Button
           onClick={handleConfirm}
           disabled={!selected || phase === 'submitting' || phase === 'waiting'}
           className="px-12 py-3 text-lg"
         >
-          {phase === 'submitting' ? 'Starting...' : phase === 'waiting' ? 'Waiting...' : 'Start Game'}
+          {phase === 'submitting' ? 'Continuing...' : phase === 'waiting' ? 'Waiting...' : 'Continue'}
         </Button>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom'
-import { setRoomCharacter, setRoomArena } from '../api/client'
+import { setRoomCalibration, setRoomCharacter, setRoomArena } from '../api/client'
 import { GameScene } from '../game/GameScene'
 import { CHARACTER_KEY_TO_ID } from '../game/constants/game'
 import LandingPage from '../room/LandingPage'
@@ -9,6 +9,7 @@ import CreateRoom from '../room/CreateRoom'
 import JoinRoom from '../room/JoinRoom'
 import CharacterSelect from '../room/CharacterSelect'
 import ArenaSelect from '../room/ArenaSelect'
+import CalibrationPage from '../room/CalibrationPage'
 
 /**
  * Route guard — redirects to fallback if condition is falsy.
@@ -28,6 +29,7 @@ export default function AppFlow() {
   const [selectedCharacter, setSelectedCharacter] = useState(null)
   const [selectedArena, setSelectedArena] = useState('arena')
   const [isOwner, setIsOwner] = useState(false)
+  const [calibrationReady, setCalibrationReady] = useState(false)
   const navigate = useNavigate()
 
   function handleFaceUploaded(faceId, faceUrl) {
@@ -68,10 +70,27 @@ export default function AppFlow() {
     console.log('[AppFlow] confirming character', { roomCode, userId, characterKey, characterId })
     const result = await setRoomCharacter(roomCode, userId, characterId)
     setSelectedCharacter(characterKey)
+    setCalibrationReady(false)
     return result
   }
 
   function handleBothCharactersSelected() {
+    navigate('/calibration')
+  }
+
+  async function handleCalibrationReady() {
+    if (!roomCode || !userId) {
+      throw new Error('Room or user is missing')
+    }
+    const result = await setRoomCalibration(roomCode, userId, true)
+    if (result?.both_calibrated) {
+      setCalibrationReady(true)
+    }
+    return result
+  }
+
+  function handleBothCalibrated() {
+    setCalibrationReady(true)
     navigate('/game')
   }
 
@@ -150,9 +169,26 @@ export default function AppFlow() {
           <Guard ok={roomCode} fallback="/start">
             <CharacterSelect
               roomCode={roomCode}
+              userId={userId}
               playerFaceUrl={playerFaceUrl}
               onConfirm={handleCharacterConfirmed}
               onBothSelected={handleBothCharactersSelected}
+            />
+          </Guard>
+        }
+      />
+
+      <Route
+        path="/calibration"
+        element={
+          <Guard ok={roomCode && selectedCharacter} fallback="/start">
+            <CalibrationPage
+              roomCode={roomCode}
+              userId={userId}
+              playerName={playerName}
+              playerFaceUrl={playerFaceUrl}
+              onReady={handleCalibrationReady}
+              onBothReady={handleBothCalibrated}
             />
           </Guard>
         }
@@ -162,7 +198,7 @@ export default function AppFlow() {
       <Route
         path="/game"
         element={
-          <Guard ok={roomCode && selectedCharacter} fallback="/start">
+          <Guard ok={roomCode && selectedCharacter && calibrationReady} fallback="/start">
             <GameScene
               roomCode={roomCode}
               userId={userId}

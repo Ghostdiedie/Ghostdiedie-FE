@@ -76,6 +76,16 @@ export async function setRoomCharacter(code, userId, characterId) {
   // → { updated, character_id }
 }
 
+export async function setRoomCalibration(code, userId, ready = true) {
+  const params = new URLSearchParams({
+    code,
+    user_id: userId,
+    ready: String(ready),
+  })
+  return get(`/api/room/calibration?${params}`)
+  // → { updated, ready, both_calibrated }
+}
+
 export async function getRoomStatus(code) {
   const params = new URLSearchParams({ code })
   return get(`/api/room/status?${params}`)
