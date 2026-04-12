@@ -126,7 +126,7 @@ export function usePoseDetection(videoRef, enabled, onAction) {
       } catch { return }
 
       const lm = results?.landmarks?.[0]
-      drawOverlay(video, overlayCanvasRef.current, lm, gameReadyRef.current)
+      drawOverlay(video, overlayCanvasRef.current, lm, detectorsRef.current, gameReadyRef.current)
 
       if (!lm) return
 
@@ -173,7 +173,7 @@ export function usePoseDetection(videoRef, enabled, onAction) {
   return { status, lastAction, gameReady, recalibrate, attachOverlayCanvasRef }
 }
 
-function drawOverlay(video, canvas, landmarks, gameReady) {
+function drawOverlay(video, canvas, landmarks, detectors, gameReady) {
   if (!canvas || !video?.videoWidth) return
 
   if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
@@ -186,46 +186,206 @@ function drawOverlay(video, canvas, landmarks, gameReady) {
 
   const w = canvas.width
   const h = canvas.height
+  const walk = detectors?.walk
 
+  // ── Draw mirrored video ──
   ctx.save()
   ctx.clearRect(0, 0, w, h)
   ctx.translate(w, 0)
   ctx.scale(-1, 1)
   ctx.drawImage(video, 0, 0, w, h)
+  ctx.restore()
+
   ctx.fillStyle = 'rgba(0,0,0,0.2)'
   ctx.fillRect(0, 0, w, h)
 
+  // Mirror helper: raw landmark x → screen x
+  const mx = (lx) => w - lx * w
+  const sy = (ly) => ly * h
+
   if (landmarks) {
+    // ── Walk zone overlays (behind everything) ──
+    if (walk?.calibrated) {
+      const threshold = walk.calShoulderW * 0.6
+      const centerX = w - walk.calNoseX
+      const leftLine = Math.max(0, centerX - threshold)
+      const rightLine = Math.min(w, centerX + threshold)
+
+      // Left zone (blue — Python BGR (255,100,0))
+      if (leftLine > 0) {
+        ctx.fillStyle = 'rgba(0, 100, 255, 0.2)'
+        ctx.fillRect(0, 0, leftLine, h)
+        ctx.strokeStyle = 'rgba(0, 100, 255, 0.6)'
+        ctx.lineWidth = 2
+        ctx.strokeRect(0, 0, leftLine, h)
+      }
+      // Right zone (red — Python BGR (0,100,255))
+      if (rightLine < w) {
+        ctx.fillStyle = 'rgba(255, 100, 0, 0.2)'
+        ctx.fillRect(rightLine, 0, w - rightLine, h)
+        ctx.strokeStyle = 'rgba(255, 100, 0, 0.6)'
+        ctx.lineWidth = 2
+        ctx.strokeRect(rightLine, 0, w - rightLine, h)
+      }
+    }
+
+    // ── Pose connections (cyan) ──
     ctx.strokeStyle = 'rgba(0,255,255,0.9)'
-    ctx.lineWidth   = 3
+    ctx.lineWidth = 3
     for (const [a, b] of POSE_CONNECTIONS) {
       const p1 = landmarks[a]
       const p2 = landmarks[b]
       if (!p1 || !p2) continue
       ctx.beginPath()
-      ctx.moveTo(p1.x * w, p1.y * h)
-      ctx.lineTo(p2.x * w, p2.y * h)
+      ctx.moveTo(mx(p1.x), sy(p1.y))
+      ctx.lineTo(mx(p2.x), sy(p2.y))
       ctx.stroke()
     }
 
-    for (const idx of [11, 12, 13, 14, 15, 16, 23, 24]) {
+    // ── Body box (torso area) ──
+    const ls = landmarks[11]
+    const rs = landmarks[12]
+    const lh = landmarks[23]
+    const rh = landmarks[24]
+    if (ls && rs && lh && rh) {
+      const shoulderY = Math.min(sy(ls.y), sy(rs.y))
+      const hipY = Math.max(sy(lh.y), sy(rh.y))
+      const xs = [mx(ls.x), mx(rs.x), mx(lh.x), mx(rh.x)]
+      const bx1 = Math.min(...xs)
+      const bx2 = Math.max(...xs)
+      const by1 = shoulderY
+      const by2 = shoulderY + (hipY - shoulderY) * 0.55
+      const bcx = (bx1 + bx2) / 2
+
+      ctx.fillStyle = 'rgba(220, 220, 220, 0.2)'
+      ctx.fillRect(bx1, by1, bx2 - bx1, by2 - by1)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)'
+      ctx.lineWidth = 2
+      ctx.strokeRect(bx1, by1, bx2 - bx1, by2 - by1)
+      ctx.beginPath()
+      ctx.moveTo(bcx, by1)
+      ctx.lineTo(bcx, by2)
+      ctx.stroke()
+    }
+
+    // ── Joint dots (cyan) ──
+    for (const idx of [11, 12, 13, 14, 23, 24, 25, 26]) {
       const p = landmarks[idx]
       if (!p) continue
-      ctx.fillStyle = (idx === 15 || idx === 16) ? '#f97316' : '#ffffff'
+      ctx.fillStyle = '#00ffff'
       ctx.beginPath()
-      ctx.arc(p.x * w, p.y * h, idx === 15 || idx === 16 ? 10 : 6, 0, Math.PI * 2)
+      ctx.arc(mx(p.x), sy(p.y), 6, 0, Math.PI * 2)
       ctx.fill()
+    }
+
+    // ── Nose highlight (green circle) ──
+    const nose = landmarks[0]
+    if (nose) {
+      const nx = mx(nose.x), ny = sy(nose.y)
+      ctx.fillStyle = '#00ff00'
+      ctx.beginPath()
+      ctx.arc(nx, ny, 14, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(nx, ny, 14, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+
+    // ── Wrist circles (colored, like Python punch.draw) ──
+    const wrists = [
+      { idx: 15, color: 'rgb(255, 100, 0)' },  // right hand (orange-red)
+      { idx: 16, color: 'rgb(0, 150, 255)' },   // left hand (blue)
+    ]
+    for (const { idx, color } of wrists) {
+      const p = landmarks[idx]
+      if (!p) continue
+      const px = mx(p.x), py = sy(p.y)
+      ctx.fillStyle = color
+      ctx.beginPath()
+      ctx.arc(px, py, 18, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.arc(px, py, 18, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+
+    // ── Joint labels ──
+    const JOINT_LABELS = [
+      ['R.Shoulder', 11], ['L.Shoulder', 12],
+      ['R.Elbow', 13],    ['L.Elbow', 14],
+      ['R.Wrist', 15],    ['L.Wrist', 16],
+      ['R.Hip', 23],       ['L.Hip', 24],
+      ['R.Knee', 25],      ['L.Knee', 26],
+    ]
+    ctx.font = '10px sans-serif'
+    for (const [jLabel, idx] of JOINT_LABELS) {
+      const p = landmarks[idx]
+      if (!p) continue
+      ctx.fillStyle = (p.visibility ?? 0) > 0.4 ? '#00ff00' : '#ff0000'
+      ctx.fillText(jLabel, mx(p.x) + 8, sy(p.y) - 8)
     }
   }
 
-  // 상태 표시
-  ctx.scale(-1, 1)
-  const label = gameReady ? 'CV READY' : 'CALIBRATING'
-  const color = gameReady ? '#4ade80' : '#facc15'
+  // ── Calibration progress bar (yellow) OR Depth gauge bar ──
+  if (walk && !walk.calibrated) {
+    const calLen = walk.calBuf?.length ?? 0
+    const progress = (calLen / 60) * w
+
+    ctx.fillStyle = 'rgb(255, 255, 0)'
+    ctx.fillRect(0, h - 10, progress, 10)
+    ctx.font = 'bold 13px sans-serif'
+    ctx.fillText('Calibrating...', 10, h - 15)
+  } else if (walk?.calibrated) {
+    const barH = 18
+    const barY = h - barH - 2
+    const calW = walk.calShoulderW
+    const minW = calW * 0.5
+    const maxW = calW * 1.7
+    const total = maxW - minW
+
+    const bwdX = ((calW * 0.80 - minW) / total) * w
+    const fwdX = ((calW * 1.40 - minW) / total) * w
+
+    const buf = walk.shoulderWBuf
+    const swNow = buf.length > 0 ? buf.reduce((a, b) => a + b, 0) / buf.length : calW
+    const curX = Math.max(0, Math.min(w - 1, ((swNow - minW) / total) * w))
+
+    ctx.fillStyle = 'rgb(0, 100, 255)'
+    ctx.fillRect(0, barY, bwdX, barH)
+    ctx.fillStyle = 'rgb(50, 180, 50)'
+    ctx.fillRect(bwdX, barY, fwdX - bwdX, barH)
+    ctx.fillStyle = 'rgb(255, 100, 0)'
+    ctx.fillRect(fwdX, barY, w - fwdX, barH)
+
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(curX - 3, barY - 2, 6, barH + 4)
+
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 9px sans-serif'
+    ctx.fillText('BACK', 4, barY + 13)
+    ctx.fillText('NEUTRAL', bwdX + 4, barY + 13)
+    ctx.fillText('FORWARD', fwdX + 4, barY + 13)
+  }
+
+  // ── "BEFORE GAME START" text (calibrated but game not started) ──
+  if (walk?.calibrated && !gameReady) {
+    ctx.font = 'bold 18px sans-serif'
+    ctx.fillStyle = 'rgba(0, 200, 255, 0.9)'
+    const txt = 'BEFORE GAME START'
+    const tw = ctx.measureText(txt).width
+    ctx.fillText(txt, (w - tw) / 2, h / 2)
+  }
+
+  // ── Status label (top-left) ──
+  const statusLabel = walk?.calibrated ? 'CV READY' : 'CALIBRATING'
+  const statusColor = walk?.calibrated ? '#4ade80' : '#facc15'
   ctx.fillStyle = 'rgba(0,0,0,0.6)'
-  ctx.fillRect(-w + 10, 10, 130, 26)
-  ctx.fillStyle = color
+  ctx.fillRect(10, 10, 130, 26)
+  ctx.fillStyle = statusColor
   ctx.font = 'bold 14px sans-serif'
-  ctx.fillText(label, -w + 18, 28)
-  ctx.restore()
+  ctx.fillText(statusLabel, 18, 28)
 }
