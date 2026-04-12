@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { getRoomStatus } from '../api/client'
 import backgroundImg from '../assets/background/background.webp'
 
 const ARENAS = [
@@ -234,11 +235,30 @@ function ArenaCard({ arena, selected, disabled, onClick }) {
 }
 
 // ─── Guest waiting screen ────────────────────────────────────────────────────
-function GuestWaiting({ onDone }) {
+function GuestWaiting({ roomCode, onDone }) {
   useEffect(() => {
-    const t = setTimeout(onDone, 2200)
-    return () => clearTimeout(t)
-  }, [onDone])
+    // Poll room status until the owner sets an arena_key
+    const interval = setInterval(async () => {
+      try {
+        const status = await getRoomStatus(roomCode)
+        if (status.arena_key) {
+          clearInterval(interval)
+          onDone(status.arena_key)
+        }
+      } catch { /* ignore polling errors */ }
+    }, 1500)
+
+    // Fallback: if no arena_key arrives within 60 s, proceed with default
+    const fallback = setTimeout(() => {
+      clearInterval(interval)
+      onDone(null)
+    }, 60000)
+
+    return () => {
+      clearInterval(interval)
+      clearTimeout(fallback)
+    }
+  }, [roomCode, onDone])
 
   return (
     <div className="relative z-10 flex flex-1 flex-col items-center justify-center gap-6">
@@ -256,7 +276,7 @@ function GuestWaiting({ onDone }) {
 }
 
 // ─── Main export ─────────────────────────────────────────────────────────────
-export default function ArenaSelect({ isOwner, onArenaSelected, onBack }) {
+export default function ArenaSelect({ isOwner, roomCode, onArenaSelected, onBack }) {
   const [selected, setSelected] = useState('arena')
   const [confirming, setConfirming] = useState(false)
 
@@ -317,7 +337,7 @@ export default function ArenaSelect({ isOwner, onArenaSelected, onBack }) {
           ))}
         </div>
       ) : (
-        <GuestWaiting onDone={() => onArenaSelected(null)} />
+        <GuestWaiting roomCode={roomCode} onDone={onArenaSelected} />
       )}
 
       {/* Confirm button (owner only) */}

@@ -18,6 +18,14 @@ export default function FaceUpload({ faceUrl, onFaceUploaded }) {
   // Cleanup on unmount
   useEffect(() => stopCamera, [stopCamera])
 
+  // Attach stream to video element after React commits the DOM
+  useEffect(() => {
+    if (cameraOpen && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current
+      videoRef.current.play().catch(() => {})
+    }
+  }, [cameraOpen])
+
   async function openCamera() {
     setError('')
     try {
@@ -27,14 +35,7 @@ export default function FaceUpload({ faceUrl, onFaceUploaded }) {
       })
       streamRef.current = stream
       setCameraOpen(true)
-
-      // Wait for ref to be available after state update
-      requestAnimationFrame(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-          videoRef.current.play()
-        }
-      })
+      // srcObject is set in the useEffect above, after React re-renders the <video> element
     } catch {
       setError('카메라를 사용할 수 없습니다.')
     }

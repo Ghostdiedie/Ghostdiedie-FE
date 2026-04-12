@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Routes, Route, useNavigate, Navigate } from 'react-router-dom'
-import { setRoomCharacter } from '../api/client'
+import { setRoomCharacter, setRoomArena } from '../api/client'
 import { GameScene } from '../game/GameScene'
 import { CHARACTER_KEY_TO_ID } from '../game/constants/game'
 import LandingPage from '../room/LandingPage'
@@ -49,9 +49,15 @@ export default function AppFlow() {
     navigate('/arena')
   }
 
-  // Called by ArenaSelect — arenaKey is null for guest (will be synced via WS)
-  function handleArenaSelected(arenaKey) {
-    if (arenaKey) setSelectedArena(arenaKey)
+  // Called by ArenaSelect — owner passes their chosen key; guest passes the key received via polling
+  async function handleArenaSelected(arenaKey) {
+    if (arenaKey) {
+      setSelectedArena(arenaKey)
+      // Owner: persist arena to backend so guest can poll it
+      if (isOwner && roomCode) {
+        try { await setRoomArena(roomCode, userId, arenaKey) } catch {}
+      }
+    }
     navigate('/select')
   }
 
@@ -137,8 +143,9 @@ export default function AppFlow() {
           <Guard ok={roomCode} fallback="/start">
             <ArenaSelect
               isOwner={isOwner}
+              roomCode={roomCode}
               onArenaSelected={handleArenaSelected}
-              onBack={() => navigate('/start')}
+              onBack={() => navigate(-1)}
             />
           </Guard>
         }
