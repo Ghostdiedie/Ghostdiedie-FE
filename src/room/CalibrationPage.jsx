@@ -260,18 +260,18 @@ export default function CalibrationPage({ roomCode, userId, playerName, playerFa
                 <div className="relative z-10 w-full pb-4 text-center">
                   {isCountingDown ? (
                     <>
-                      <p className="text-xs font-semibold uppercase tracking-widest text-white/70">이 윤곽선 안에 맞춰 서세요</p>
+                      <p className="text-xs font-semibold uppercase tracking-widest text-white/70">Stand inside the outline</p>
                       <p className="text-6xl font-black text-white drop-shadow-lg">{countdown}</p>
                     </>
                   ) : isCalibrating ? (
                     <>
-                      <p className="text-base font-bold text-yellow-300">캘리브레이션 중...</p>
-                      <p className="text-xs text-white/50">가만히 서계세요</p>
+                      <p className="text-base font-bold text-yellow-300">Calibrating...</p>
+                      <p className="text-xs text-white/50">Hold still</p>
                     </>
                   ) : (
                     <>
-                      <p className="text-xl font-black text-green-400">✓ 캘리브레이션 완료</p>
-                      <p className="text-xs text-white/50">Ready 버튼을 눌러주세요</p>
+                      <p className="text-xl font-black text-green-400">✓ Calibration Complete</p>
+                      <p className="text-xs text-white/50">Press the Ready button</p>
                     </>
                   )}
                 </div>
