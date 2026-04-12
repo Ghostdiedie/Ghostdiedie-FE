@@ -11,9 +11,57 @@ const DEV_SERVER_URL = process.env.ELECTRON_RENDERER_URL
 const CV_HOST = process.env.CV_BRIDGE_HOST || '127.0.0.1'
 const CV_PORT = Number.parseInt(process.env.CV_BRIDGE_PORT || '8765', 10)
 const CV_BRIDGE_URL = `ws://${CV_HOST}:${CV_PORT}`
+const PYTHON_BUNDLE_DIR = path.join(process.resourcesPath, 'python')
 
 let mainWindow = null
 let cvProcess = null
+
+function readBundledPythonManifest() {
+  const manifestPath = path.join(PYTHON_BUNDLE_DIR, 'ghostdiedie-python.json')
+  if (!app.isPackaged || !fs.existsSync(manifestPath)) {
+    return null
+  }
+
+  try {
+    return JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  } catch (error) {
+    console.warn('[electron] failed to read bundled Python manifest', error.message)
+    return null
+  }
+}
+
+function resolveBundledPython() {
+  const manifest = readBundledPythonManifest()
+  if (!manifest) return null
+
+  const executablePath = path.join(PYTHON_BUNDLE_DIR, manifest.executable)
+  if (!fs.existsSync(executablePath)) {
+    console.warn('[electron] bundled Python executable missing', executablePath)
+    return null
+  }
+
+  const sitePackages = Array.isArray(manifest.sitePackages)
+    ? manifest.sitePackages.map(rel => path.join(PYTHON_BUNDLE_DIR, rel))
+    : []
+
+  const pathEntries = [
+    path.dirname(executablePath),
+    path.join(PYTHON_BUNDLE_DIR, 'bin'),
+    path.join(PYTHON_BUNDLE_DIR, 'Scripts'),
+    process.env.PATH || '',
+  ].filter(Boolean)
+
+  return {
+    command: executablePath,
+    home: PYTHON_BUNDLE_DIR,
+    sitePackages,
+    env: {
+      PYTHONHOME: PYTHON_BUNDLE_DIR,
+      PYTHONPATH: sitePackages.join(path.delimiter),
+      PATH: pathEntries.join(path.delimiter),
+    },
+  }
+}
 
 function canConnect(host, port, timeoutMs = 350) {
   return new Promise((resolve) => {
@@ -61,12 +109,14 @@ function resolveCvLaunch() {
   }
 
   const packagedScript = path.join(process.resourcesPath, 'cv', 'main.py')
-  if (app.isPackaged && fs.existsSync(packagedScript)) {
+  const bundledPython = resolveBundledPython()
+  if (app.isPackaged && bundledPython && fs.existsSync(packagedScript)) {
     return {
-      command: resolvePythonCommand(),
+      command: bundledPython.command,
       args: [packagedScript],
       cwd: path.dirname(packagedScript),
-      mode: 'packaged-python',
+      env: bundledPython.env,
+      mode: 'packaged-python-runtime',
     }
   }
 
@@ -99,6 +149,7 @@ async function startCvBridge() {
     cwd: launch.cwd,
     env: {
       ...process.env,
+      ...(launch.env || {}),
       CV_BRIDGE_HOST: CV_HOST,
       CV_BRIDGE_PORT: String(CV_PORT),
       CV_SHOW_WINDOW: process.env.CV_SHOW_WINDOW || '0',

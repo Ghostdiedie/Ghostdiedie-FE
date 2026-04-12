@@ -5,6 +5,7 @@
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
+    "prepare:cv-runtime": "node scripts/prepare-python-bundle.cjs",
     "diedie": "./diedie",
     "dev": "./diedie",
     "vite:dev": "vite --host 0.0.0.0 --port 5173 --strictPort",
@@ -13,11 +14,11 @@
     "preview": "vite preview",
     "electron:start": "electron .",
     "electron:dev": "node scripts/electron-dev.cjs",
-    "electron:pack": "npm run build && electron-builder --dir",
-    "electron:build": "npm run build && electron-builder",
-    "electron:dist:mac": "npm run build && electron-builder --mac dmg --x64 --arm64",
-    "electron:dist:win": "npm run build && electron-builder --win nsis --x64",
-    "electron:dist:all": "npm run build && electron-builder --mac dmg --x64 --arm64 --win nsis --x64"
+    "electron:pack": "npm run prepare:cv-runtime && npm run build && electron-builder --dir",
+    "electron:build": "npm run prepare:cv-runtime && npm run build && electron-builder",
+    "electron:dist:mac": "npm run prepare:cv-runtime && npm run build && electron-builder --mac dmg --x64 --arm64",
+    "electron:dist:win": "npm run prepare:cv-runtime && npm run build && electron-builder --win nsis --x64",
+    "electron:dist:all": "npm run prepare:cv-runtime && npm run build && electron-builder --mac dmg --x64 --arm64 --win nsis --x64"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^0.10.34",
@@ -91,6 +92,13 @@
       "artifactName": "${productName}-${version}-win-${arch}.${ext}"
     },
     "extraResources": [
+      {
+        "from": ".electron-bundle/python",
+        "to": "python",
+        "filter": [
+          "**/*"
+        ]
+      },
       {
         "from": "../Ghostdiedie-CV",
         "to": "cv",

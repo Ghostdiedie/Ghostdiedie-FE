@@ -5,6 +5,7 @@ node_modules/
 dist/
 dist-ssr/
 dist-electron/
+.electron-bundle/
 electron-dist/
 mac/
 mac-arm64/
