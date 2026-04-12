@@ -123,11 +123,16 @@ export function HUD({
         {cvMode ? (
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <Hint>CV Mode — punch to attack</Hint>
+            <Hint>CV active</Hint>
             <Sep />
             <Hint>{formatCvStatus(cvStatus, cvLastDetected)}</Hint>
             <Sep />
-            <Key k="Tab" wide /><Hint>switch</Hint>
+            <div className="flex items-center gap-1">
+              <Key k="Q" /><Hint>왼손</Hint>
+              <Key k="E" /><Hint>킥</Hint>
+              <Key k="F" /><Hint>오른손</Hint>
+              <Key k="R" /><Hint>헤딩</Hint>
+            </div>
           </div>
         ) : (
           <>
@@ -143,9 +148,8 @@ export function HUD({
               <Key k="Q" /><Hint>왼손</Hint>
               <Key k="E" /><Hint>킥</Hint>
               <Key k="F" /><Hint>오른손</Hint>
+              <Key k="R" /><Hint>헤딩</Hint>
             </div>
-            <Sep />
-            <Key k="Tab" wide /><Hint>CV</Hint>
           </>
         )}
       </div>

@@ -481,6 +481,7 @@ function SceneWithMultiplayer({ ws, playerFaceUrl, opponentFaceUrl, playerCharac
     if (events.punchLeft) mp.playerPunch('left')
     if (events.kick) mp.playerKick()
     if (events.punchRight) mp.playerPunch('right')
+    if (events.headAttack) mp.playerHeadAttack()
   })
 
   return (

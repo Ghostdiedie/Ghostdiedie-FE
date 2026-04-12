@@ -9,6 +9,7 @@ import { GROUND_Y, CHARACTER_ID_TO_KEY } from '../constants/game'
 function toServerAction(name) {
   if (name === 'left_punch') return 'left punch'
   if (name === 'right_punch') return 'right punch'
+  if (name === 'head_attack') return 'headbutt'
   return name
 }
 
@@ -269,6 +270,11 @@ export function useMultiplayer(ws, playerMovement) {
     [playerAttack],
   )
 
+  const playerHeadAttack = useCallback(
+    () => playerAttack('head_attack'),
+    [playerAttack],
+  )
+
   // Send selected character to opponent via relay
   const sendCharacterSelect = useCallback((characterKey) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -302,6 +308,7 @@ export function useMultiplayer(ws, playerMovement) {
     // Actions
     playerPunch,
     playerKick,
+    playerHeadAttack,
     sendCharacterSelect,
   }
 }

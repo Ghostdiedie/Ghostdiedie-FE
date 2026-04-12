@@ -38,6 +38,14 @@ export const ATTACKS = {
     hitTime: 0.25,
     range: 2.2,
   },
+  head_attack: {
+    name: 'head_attack',
+    damage: 14,
+    duration: 0.55,
+    cooldown: 0.28,
+    hitTime: 0.18,
+    range: 1.9,
+  },
 }
 
 export const DEFAULT_ATTACK = ATTACKS.left_punch

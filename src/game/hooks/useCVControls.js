@@ -2,6 +2,17 @@ import { useCallback, useEffect, useRef } from 'react'
 
 const MOVE_PULSE_MS = 220
 const JUMP_PULSE_MS = 180
+const KEY_MAP = {
+  KeyW: 'forward',
+  KeyS: 'backward',
+  KeyA: 'left',
+  KeyD: 'right',
+  Space: 'jump',
+  KeyQ: 'punchLeft',
+  KeyE: 'kick',
+  KeyF: 'punchRight',
+  KeyR: 'headAttack',
+}
 
 function makeKeys() {
   return {
@@ -13,12 +24,18 @@ function makeKeys() {
     punchLeft: false,
     kick: false,
     punchRight: false,
+    headAttack: false,
   }
 }
 
 export function useCVControls() {
   const keys = useRef(makeKeys())
-  const combatEvents = useRef({ punchLeft: false, kick: false, punchRight: false })
+  const combatEvents = useRef({
+    punchLeft: false,
+    kick: false,
+    punchRight: false,
+    headAttack: false,
+  })
   const timersRef = useRef({})
 
   const pulseKey = useCallback((key, duration) => {
@@ -43,6 +60,10 @@ export function useCVControls() {
         break
       case 'kick':
         combatEvents.current.kick = true
+        break
+      case 'headbutt':
+      case 'head attack':
+        combatEvents.current.headAttack = true
         break
       case 'jump':
         pulseKey('jump', JUMP_PULSE_MS)
@@ -69,6 +90,7 @@ export function useCVControls() {
     combatEvents.current.punchLeft = false
     combatEvents.current.kick = false
     combatEvents.current.punchRight = false
+    combatEvents.current.headAttack = false
     return events
   }, [])
 
@@ -76,6 +98,40 @@ export function useCVControls() {
     const timers = timersRef.current
     return () => {
       Object.values(timers).forEach(clearTimeout)
+    }
+  }, [])
+
+  useEffect(() => {
+    const onDown = (e) => {
+      const action = KEY_MAP[e.code]
+      if (!action) return
+
+      e.preventDefault()
+      if (
+        (action === 'punchLeft'
+          || action === 'punchRight'
+          || action === 'kick'
+          || action === 'headAttack')
+        && !keys.current[action]
+      ) {
+        combatEvents.current[action] = true
+      }
+      keys.current[action] = true
+    }
+
+    const onUp = (e) => {
+      const action = KEY_MAP[e.code]
+      if (!action) return
+
+      e.preventDefault()
+      keys.current[action] = false
+    }
+
+    window.addEventListener('keydown', onDown)
+    window.addEventListener('keyup', onUp)
+    return () => {
+      window.removeEventListener('keydown', onDown)
+      window.removeEventListener('keyup', onUp)
     }
   }, [])
 
