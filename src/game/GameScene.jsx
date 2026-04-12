@@ -4,7 +4,6 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { useGLTF } from '@react-three/drei'
 import { createWebSocket } from '../api/client'
 import { useWebRTC } from './hooks/useWebRTC'
-import { useLocalCVBridge } from './hooks/useLocalCVBridge'
 import { Arena } from './components/Arena'
 import { Arena2 } from './components/Arena2'
 import { PlayerCharacter } from './components/PlayerCharacter'
@@ -219,7 +218,17 @@ function WaitingForOpponentOverlay() {
   )
 }
 
-export function GameScene({ roomCode, userId, playerName, playerFaceUrl, opponentFaceUrl, playerCharacterKey = 'blue', arenaKey = 'arena' }) {
+export function GameScene({
+  roomCode,
+  userId,
+  playerName,
+  playerFaceUrl,
+  opponentFaceUrl,
+  playerCharacterKey = 'blue',
+  arenaKey = 'arena',
+  cvBridge,
+  setCvActionHandler,
+}) {
   const navigate = useNavigate()
   const [ws, setWs] = useState(null)
   const [gameStarted, setGameStarted] = useState(false)
@@ -237,8 +246,14 @@ export function GameScene({ roomCode, userId, playerName, playerFaceUrl, opponen
   const [gameEndInfo, setGameEndInfo] = useState(null)   // { winnerName, winnerIndex }
 
   const cvControls = useCVControls()
-  const cvBridge = useLocalCVBridge(cvControls.handleAction)
   const cvMode = true
+
+  useEffect(() => {
+    setCvActionHandler?.(cvControls.handleAction)
+    return () => {
+      setCvActionHandler?.(null)
+    }
+  }, [cvControls.handleAction, setCvActionHandler])
 
   useWebRTC(ws, cvBridge.stream, playerIndex === 0, gameStarted)
 

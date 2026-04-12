@@ -107,7 +107,7 @@ export default function JoinRoom({ userId, playerFaceUrl, onOpponentFaceUrl, onJ
           <FaceUpload
             faceUrl={playerFaceUrl}
             readOnly
-            helperText="등록한 프로필 사진으로만 방에 참가할 수 있습니다"
+            helperText="You can only join a room with your registered profile photo."
           />
         </div>
 

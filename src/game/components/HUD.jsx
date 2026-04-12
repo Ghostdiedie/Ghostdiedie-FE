@@ -128,10 +128,10 @@ export function HUD({
             <Hint>{formatCvStatus(cvStatus, cvLastDetected)}</Hint>
             <Sep />
             <div className="flex items-center gap-1">
-              <Key k="Q" /><Hint>왼손</Hint>
-              <Key k="E" /><Hint>킥</Hint>
-              <Key k="F" /><Hint>오른손</Hint>
-              <Key k="R" /><Hint>헤딩</Hint>
+              <Key k="Q" /><Hint>left</Hint>
+              <Key k="E" /><Hint>kick</Hint>
+              <Key k="F" /><Hint>right</Hint>
+              <Key k="R" /><Hint>head</Hint>
             </div>
           </div>
         ) : (
@@ -145,10 +145,10 @@ export function HUD({
             </div>
             <Sep />
             <div className="flex items-center gap-1">
-              <Key k="Q" /><Hint>왼손</Hint>
-              <Key k="E" /><Hint>킥</Hint>
-              <Key k="F" /><Hint>오른손</Hint>
-              <Key k="R" /><Hint>헤딩</Hint>
+              <Key k="Q" /><Hint>left</Hint>
+              <Key k="E" /><Hint>kick</Hint>
+              <Key k="F" /><Hint>right</Hint>
+              <Key k="R" /><Hint>head</Hint>
             </div>
           </>
         )}

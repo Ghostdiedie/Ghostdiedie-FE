@@ -96,7 +96,7 @@ export default function LobbyPage({
 
             {!ready && (
               <p className="mt-5 text-sm text-gray-400 tracking-wide">
-                {!playerFaceId ? '사진을 먼저 등록하세요' : 'Enter your name to continue'}
+                {!playerFaceId ? 'Register your photo first.' : 'Enter your name to continue.'}
               </p>
             )}
           </div>

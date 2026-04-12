@@ -1,17 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import Button from '../components/Button'
 import { getRoomStatus } from '../api/client'
-import { useLocalCVBridge } from '../game/hooks/useLocalCVBridge'
-import { useCVControls } from '../game/hooks/useCVControls'
 import backgroundImg from '../assets/background/background.webp'
 
 function StatusDot({ active, color = 'bg-green-400' }) {
   return <span className={`h-2.5 w-2.5 rounded-full ${active ? color : 'bg-white/20'}`} />
 }
 
-export default function CalibrationPage({ roomCode, userId, playerName, playerFaceUrl, onReady, onBothReady }) {
-  const cvControls = useCVControls()
-  const cvBridge = useLocalCVBridge(cvControls.handleAction)
+export default function CalibrationPage({ roomCode, userId, playerName, playerFaceUrl, cvBridge, onReady, onBothReady }) {
   const [phase, setPhase] = useState('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const [remoteReady, setRemoteReady] = useState(false)
@@ -83,7 +79,7 @@ export default function CalibrationPage({ roomCode, userId, playerName, playerFa
             <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-white/35">Calibration</p>
             <h1 className="mt-2 text-4xl font-black tracking-wide text-white">GET READY</h1>
             <p className="mt-3 text-sm text-white/55">
-              카메라 연결을 확인하고 테스트 동작을 해보세요. 두 사람 모두 준비되면 게임을 시작합니다.
+              Check the camera connection and try a few test moves. The match starts once both players are ready.
             </p>
           </div>
 
@@ -126,7 +122,7 @@ export default function CalibrationPage({ roomCode, userId, playerName, playerFa
           <div className="mt-6 flex flex-col gap-3">
             {errorMsg && <p className="text-sm text-red-400">{errorMsg}</p>}
             {phase === 'waiting' && (
-              <p className="text-sm text-white/55">상대가 calibration을 끝낼 때까지 기다리는 중입니다.</p>
+              <p className="text-sm text-white/55">Waiting for your opponent to finish calibration.</p>
             )}
             <Button
               onClick={handleReady}
@@ -156,8 +152,8 @@ export default function CalibrationPage({ roomCode, userId, playerName, playerFa
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-white/55">
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">왼손/오른손 펀치가 잡히는지 확인</div>
-            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">킥, 점프, 헤드 동작이 반응하는지 확인</div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">Make sure left and right punches are detected.</div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3">Verify kick, jump, and head attacks respond correctly.</div>
           </div>
         </div>
       </div>

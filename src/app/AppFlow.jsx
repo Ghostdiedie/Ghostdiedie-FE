@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { Routes, Route, useNavigate, Navigate } from 'react-router-dom'
+import { useCallback, useRef, useState } from 'react'
+import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom'
 import { setRoomCalibration, setRoomCharacter, setRoomArena } from '../api/client'
 import { GameScene } from '../game/GameScene'
 import { CHARACTER_KEY_TO_ID } from '../game/constants/game'
+import { useLocalCVBridge } from '../game/hooks/useLocalCVBridge'
 import LandingPage from '../room/LandingPage'
 import LobbyPage from '../room/LobbyPage'
 import CreateRoom from '../room/CreateRoom'
@@ -31,6 +32,19 @@ export default function AppFlow() {
   const [isOwner, setIsOwner] = useState(false)
   const [calibrationReady, setCalibrationReady] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
+  const cvActionHandlerRef = useRef(null)
+  const cvEnabled = location.pathname === '/calibration' || location.pathname === '/game'
+
+  const handleCvAction = useCallback((action) => {
+    cvActionHandlerRef.current?.(action)
+  }, [])
+
+  const setCvActionHandler = useCallback((handler) => {
+    cvActionHandlerRef.current = handler
+  }, [])
+
+  const cvBridge = useLocalCVBridge(handleCvAction, { enabled: cvEnabled })
 
   function handleFaceUploaded(faceId, faceUrl) {
     setPlayerFaceId(faceId)
@@ -187,6 +201,7 @@ export default function AppFlow() {
               userId={userId}
               playerName={playerName}
               playerFaceUrl={playerFaceUrl}
+              cvBridge={cvBridge}
               onReady={handleCalibrationReady}
               onBothReady={handleBothCalibrated}
             />
@@ -207,6 +222,8 @@ export default function AppFlow() {
               opponentFaceUrl={opponentFaceUrl}
               playerCharacterKey={selectedCharacter || 'blue'}
               arenaKey={selectedArena}
+              cvBridge={cvBridge}
+              setCvActionHandler={setCvActionHandler}
             />
           </Guard>
         }

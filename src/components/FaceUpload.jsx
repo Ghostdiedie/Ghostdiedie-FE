@@ -38,7 +38,7 @@ export default function FaceUpload({ faceUrl, onFaceUploaded, readOnly = false, 
       setCameraOpen(true)
       // srcObject is set in the useEffect above, after React re-renders the <video> element
     } catch {
-      setError('카메라를 사용할 수 없습니다.')
+      setError('Camera access is unavailable.')
     }
   }
 
@@ -68,7 +68,7 @@ export default function FaceUpload({ faceUrl, onFaceUploaded, readOnly = false, 
       const data = await uploadFace(file)
       onFaceUploaded(data.face_id, data.face_url)
     } catch {
-      setError('얼굴을 인식하지 못했어요. 다시 시도해주세요.')
+      setError('Face detection failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -136,12 +136,12 @@ export default function FaceUpload({ faceUrl, onFaceUploaded, readOnly = false, 
       <p className="text-xs text-gray-400 text-center">
         {helperText || (
           readOnly
-            ? '프로필 사진은 시작 화면에서만 변경할 수 있습니다'
+            ? 'Your profile photo can only be changed on the start screen.'
             : cameraOpen
-              ? '버튼을 눌러 촬영'
+              ? 'Press the button to capture.'
               : faceUrl
-                ? '탭해서 다시 찍기'
-                : '얼굴을 촬영하세요'
+                ? 'Tap to retake.'
+                : 'Capture your face.'
         )}
       </p>
 

@@ -29,18 +29,24 @@ function makeCanvas() {
   return document.createElement('canvas')
 }
 
-export function useLocalCVBridge(onAction) {
+export function useLocalCVBridge(onAction, options = {}) {
+  const { enabled = true } = options
   const socketRef = useRef(null)
   const reconnectTimerRef = useRef(null)
   const displayCanvasRef = useRef(null)
   const streamCanvasRef = useRef(makeCanvas())
   const imageRef = useRef(null)
+  const onActionRef = useRef(onAction)
   const urlsRef = useRef(getBridgeUrls())
   const urlIndexRef = useRef(0)
-  const statusRef = useRef('connecting')
-  const [status, setStatus] = useState('connecting')
+  const statusRef = useRef(enabled ? 'connecting' : 'idle')
+  const [status, setStatus] = useState(enabled ? 'connecting' : 'idle')
   const [stream, setStream] = useState(null)
   const [lastAction, setLastAction] = useState(null)
+
+  useEffect(() => {
+    onActionRef.current = onAction
+  }, [onAction])
 
   const updateStatus = useCallback((nextStatus) => {
     statusRef.current = nextStatus
@@ -76,6 +82,14 @@ export function useLocalCVBridge(onAction) {
   }, [])
 
   useEffect(() => {
+    if (!enabled) {
+      clearTimeout(reconnectTimerRef.current)
+      socketRef.current?.close()
+      socketRef.current = null
+      updateStatus('idle')
+      return undefined
+    }
+
     let cancelled = false
     let connectAttempt = 0
 
@@ -128,7 +142,7 @@ export function useLocalCVBridge(onAction) {
         if (msg.type === 'cv_event') {
           console.log('[CVBridge] action', msg.action)
           setLastAction({ action: msg.action, at: Date.now() })
-          onAction?.(msg.action)
+          onActionRef.current?.(msg.action)
           return
         }
 
@@ -180,7 +194,7 @@ export function useLocalCVBridge(onAction) {
       socketRef.current?.close()
       socketRef.current = null
     }
-  }, [drawFrame, onAction, updateStatus])
+  }, [drawFrame, enabled, updateStatus])
 
   return {
     status,

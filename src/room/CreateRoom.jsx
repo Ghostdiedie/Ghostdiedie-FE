@@ -158,7 +158,7 @@ export default function CreateRoom({ userId, playerFaceUrl, onOpponentFaceUrl, o
           <FaceUpload
             faceUrl={playerFaceUrl}
             readOnly
-            helperText="등록한 프로필 사진으로 매칭을 진행합니다"
+            helperText="Matchmaking uses your registered profile photo."
           />
         </div>
 
