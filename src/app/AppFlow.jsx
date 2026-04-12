@@ -3,7 +3,8 @@ import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-
 import { setRoomCalibration, setRoomCharacter, setRoomArena } from '../api/client'
 import { GameScene } from '../game/GameScene'
 import { CHARACTER_KEY_TO_ID } from '../game/constants/game'
-import { useLocalCVBridge } from '../game/hooks/useLocalCVBridge'
+import { useWebcam } from '../game/hooks/useWebcam'
+import { usePoseDetection } from '../game/hooks/usePoseDetection'
 import LandingPage from '../room/LandingPage'
 import LobbyPage from '../room/LobbyPage'
 import CreateRoom from '../room/CreateRoom'
@@ -44,7 +45,17 @@ export default function AppFlow() {
     cvActionHandlerRef.current = handler
   }, [])
 
-  const cvBridge = useLocalCVBridge(handleCvAction, { enabled: cvEnabled })
+  const webcam = useWebcam(cvEnabled)
+  const poseDet = usePoseDetection(webcam.videoRef, cvEnabled, handleCvAction)
+  const cv = {
+    status: poseDet.status,
+    lastAction: poseDet.lastAction,
+    stream: webcam.stream,
+    attachDisplayCanvasRef: poseDet.attachOverlayCanvasRef,
+    send: (msg) => { if (msg.type === 'recalibrate') poseDet.recalibrate() },
+    gameReady: poseDet.gameReady,
+    recalibrate: poseDet.recalibrate,
+  }
 
   function handleFaceUploaded(faceId, faceUrl) {
     setPlayerFaceId(faceId)
@@ -109,6 +120,8 @@ export default function AppFlow() {
   }
 
   return (
+    <>
+    <video ref={webcam.attachVideoRef} playsInline muted style={{ display: 'none' }} />
     <Routes>
       <Route path="/" element={<LandingPage onStart={() => navigate('/start')} />} />
 
@@ -201,7 +214,7 @@ export default function AppFlow() {
               userId={userId}
               playerName={playerName}
               playerFaceUrl={playerFaceUrl}
-              cvBridge={cvBridge}
+              cvBridge={cv}
               onReady={handleCalibrationReady}
               onBothReady={handleBothCalibrated}
             />
@@ -222,7 +235,7 @@ export default function AppFlow() {
               opponentFaceUrl={opponentFaceUrl}
               playerCharacterKey={selectedCharacter || 'blue'}
               arenaKey={selectedArena}
-              cvBridge={cvBridge}
+              cvBridge={cv}
               setCvActionHandler={setCvActionHandler}
             />
           </Guard>
@@ -232,5 +245,6 @@ export default function AppFlow() {
       {/* Catch-all → home */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   )
 }

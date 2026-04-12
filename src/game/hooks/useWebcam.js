@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * Hook to capture the user's webcam feed.
  * Returns a videoRef to attach to a <video> element and the raw MediaStream.
  */
-export function useWebcam() {
+export function useWebcam(enabled = true) {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const [stream, setStream] = useState(null)
@@ -18,6 +18,8 @@ export function useWebcam() {
   }, [])
 
   useEffect(() => {
+    if (!enabled) return
+
     let cancelled = false
 
     async function init() {
@@ -51,7 +53,7 @@ export function useWebcam() {
       }
       setStream(null)
     }
-  }, [])
+  }, [enabled])
 
   return { videoRef, attachVideoRef, streamRef, stream }
 }

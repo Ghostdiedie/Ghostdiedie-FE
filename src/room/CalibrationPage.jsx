@@ -4,7 +4,6 @@ import { getRoomStatus } from '../api/client'
 import backgroundImg from '../assets/background/background.webp'
 
 const COUNTDOWN_SEC = 5
-const CAL_DURATION_MS = 4200  // 120프레임 @ 30fps ≈ 4초 + 여유
 
 function StatusDot({ active, color = 'bg-green-400' }) {
   return <span className={`h-2.5 w-2.5 rounded-full ${active ? color : 'bg-white/20'}`} />
@@ -80,13 +79,11 @@ export default function CalibrationPage({ roomCode, userId, playerName, playerFa
   const [calDone, setCalDone] = useState(false)
   const pollRef = useRef(null)
   const countdownRef = useRef(null)
-  const calDoneRef = useRef(null)
   const recalibratedRef = useRef(false)
 
   useEffect(() => () => {
     clearInterval(pollRef.current)
     clearInterval(countdownRef.current)
-    clearTimeout(calDoneRef.current)
   }, [])
 
   // CV 연결되면 카운트다운 시작 (최초 1회)
@@ -103,13 +100,17 @@ export default function CalibrationPage({ roomCode, userId, playerName, playerFa
           setCountdown(0)
           setCalDone(false)
           cvBridge.send({ type: 'recalibrate' })
-          calDoneRef.current = setTimeout(() => setCalDone(true), CAL_DURATION_MS)
         } else {
           setCountdown(remaining)
         }
       }, 1000)
     }
   }, [cvBridge.status])
+
+  // calDone tracks when calibration completes — driven by gameReady from pose detection
+  useEffect(() => {
+    if (cvBridge.gameReady) setCalDone(true)
+  }, [cvBridge.gameReady])
 
   function startPolling() {
     clearInterval(pollRef.current)
