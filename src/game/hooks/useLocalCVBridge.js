@@ -4,6 +4,18 @@ const FRAME_RATE = 12
 const DEFAULT_PORTS = Array.from({ length: 10 }, (_, index) => 8765 + index)
 
 function getBridgeUrls() {
+  const runtimeUrl = typeof window !== 'undefined'
+    ? window?.ghostdiedieRuntime?.cvBridgeUrl
+    : null
+  if (runtimeUrl) {
+    return [runtimeUrl]
+  }
+
+  const envUrl = import.meta.env.VITE_CV_BRIDGE_URL
+  if (envUrl) {
+    return [envUrl]
+  }
+
   const envPorts = import.meta.env.VITE_CV_BRIDGE_PORTS
   const ports = envPorts
     ? envPorts.split(',').map(value => Number.parseInt(value.trim(), 10)).filter(Number.isFinite)
