@@ -21,7 +21,7 @@ function formatTime(sec) {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-export default function CreateRoom({ userId, playerFaceUrl, onFaceUploaded, onOpponentFaceUrl, onGameStart, onBack }) {
+export default function CreateRoom({ userId, playerFaceUrl, onOpponentFaceUrl, onGameStart, onBack }) {
   const [roomCode, setRoomCode] = useState(null)
   const [phase, setPhase] = useState('creating')
   const [guest, setGuest] = useState(null)
@@ -165,7 +165,11 @@ export default function CreateRoom({ userId, playerFaceUrl, onFaceUploaded, onOp
         <div className="flex flex-col items-center bg-black/60 backdrop-blur-xl border border-white/20 rounded-[28px] px-10 py-10 shadow-[0_8px_40px_rgba(0,0,0,0.5)] w-[360px]">
 
         <div className="w-full mb-5">
-          <FaceUpload faceUrl={playerFaceUrl} onFaceUploaded={onFaceUploaded} />
+          <FaceUpload
+            faceUrl={playerFaceUrl}
+            readOnly
+            helperText="등록한 프로필 사진으로 매칭을 진행합니다"
+          />
         </div>
 
         {phase === 'creating' && (

@@ -15,7 +15,7 @@ function Dots() {
   )
 }
 
-export default function JoinRoom({ userId, playerFaceUrl, onFaceUploaded, onOpponentFaceUrl, onJoined, onBack }) {
+export default function JoinRoom({ userId, playerFaceUrl, onOpponentFaceUrl, onJoined, onBack }) {
   const [code, setCode] = useState('')
   // idle | joining | joined | confirming | waiting_confirm | connecting | error
   const [phase, setPhase] = useState('idle')
@@ -114,7 +114,11 @@ export default function JoinRoom({ userId, playerFaceUrl, onFaceUploaded, onOppo
 
         {/* Face upload */}
         <div className="w-full mb-5">
-          <FaceUpload faceUrl={playerFaceUrl} onFaceUploaded={onFaceUploaded} />
+          <FaceUpload
+            faceUrl={playerFaceUrl}
+            readOnly
+            helperText="등록한 프로필 사진으로만 방에 참가할 수 있습니다"
+          />
         </div>
 
         {/* Code input phase */}

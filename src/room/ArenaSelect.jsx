@@ -236,27 +236,56 @@ function ArenaCard({ arena, selected, disabled, onClick }) {
 
 // ─── Guest waiting screen ────────────────────────────────────────────────────
 function GuestWaiting({ roomCode, onDone }) {
+  const [errorMsg, setErrorMsg] = useState('')
+  const [delayed, setDelayed] = useState(false)
+
   useEffect(() => {
-    // Poll room status until the owner sets an arena_key
-    const interval = setInterval(async () => {
+    let active = true
+    let interval = null
+    let failures = 0
+
+    setDelayed(false)
+    setErrorMsg('')
+
+    async function pollStatus() {
       try {
         const status = await getRoomStatus(roomCode)
-        if (status.arena_key) {
-          clearInterval(interval)
-          onDone(status.arena_key)
-        }
-      } catch { /* ignore polling errors */ }
-    }, 1500)
+        if (!active) return
+        failures = 0
+        setErrorMsg('')
 
-    // Fallback: if no arena_key arrives within 60 s, proceed with default
-    const fallback = setTimeout(() => {
-      clearInterval(interval)
-      onDone(null)
-    }, 60000)
+        const arenaKey = (
+          status.arena_key ||
+          status.arenaKey ||
+          status.owner?.arena_key ||
+          status.owner?.arenaKey ||
+          null
+        )
+
+        if (arenaKey) {
+          clearInterval(interval)
+          onDone(arenaKey)
+        }
+      } catch (err) {
+        if (!active) return
+        failures += 1
+        if (failures >= 3) {
+          setErrorMsg(err.message || 'Failed to sync arena selection')
+        }
+      }
+    }
+
+    pollStatus()
+    interval = setInterval(pollStatus, 1500)
+
+    const delayTimer = setTimeout(() => {
+      if (active) setDelayed(true)
+    }, 10000)
 
     return () => {
+      active = false
       clearInterval(interval)
-      clearTimeout(fallback)
+      clearTimeout(delayTimer)
     }
   }, [roomCode, onDone])
 
@@ -271,6 +300,14 @@ function GuestWaiting({ roomCode, onDone }) {
       <p className="text-white/60 text-sm tracking-widest uppercase">
         Waiting for host to choose the arena...
       </p>
+      {delayed && !errorMsg && (
+        <p className="text-xs text-white/45 text-center">
+          Host selection is taking longer than expected. Waiting for room sync.
+        </p>
+      )}
+      {errorMsg && (
+        <p className="text-xs text-red-400 text-center">{errorMsg}</p>
+      )}
     </div>
   )
 }
@@ -279,11 +316,19 @@ function GuestWaiting({ roomCode, onDone }) {
 export default function ArenaSelect({ isOwner, roomCode, onArenaSelected, onBack }) {
   const [selected, setSelected] = useState('arena')
   const [confirming, setConfirming] = useState(false)
+  const [errorMsg, setErrorMsg] = useState('')
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (confirming) return
     setConfirming(true)
-    onArenaSelected(selected)
+    setErrorMsg('')
+
+    try {
+      await onArenaSelected(selected)
+    } catch (err) {
+      setConfirming(false)
+      setErrorMsg(err.message || 'Failed to save arena selection')
+    }
   }
 
   return (
@@ -342,13 +387,14 @@ export default function ArenaSelect({ isOwner, roomCode, onArenaSelected, onBack
 
       {/* Confirm button (owner only) */}
       {isOwner && (
-        <div className="relative z-10 flex justify-center pb-10">
+        <div className="relative z-10 flex flex-col items-center gap-3 pb-10">
+          {errorMsg && <p className="text-sm text-red-400">{errorMsg}</p>}
           <button
             onClick={handleConfirm}
             disabled={confirming}
             className="px-16 py-4 rounded-2xl bg-yellow-400 text-black font-black text-lg tracking-wider uppercase hover:bg-yellow-300 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {confirming ? 'Confirmed!' : 'Confirm Arena'}
+            {confirming ? 'Confirming...' : 'Confirm Arena'}
           </button>
         </div>
       )}

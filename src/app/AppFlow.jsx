@@ -53,9 +53,8 @@ export default function AppFlow() {
   async function handleArenaSelected(arenaKey) {
     if (arenaKey) {
       setSelectedArena(arenaKey)
-      // Owner: persist arena to backend so guest can poll it
       if (isOwner && roomCode) {
-        try { await setRoomArena(roomCode, userId, arenaKey) } catch {}
+        await setRoomArena(roomCode, userId, arenaKey)
       }
     }
     navigate('/select')
@@ -105,10 +104,7 @@ export default function AppFlow() {
           <Guard ok={userId} fallback="/start">
             <CreateRoom
               userId={userId}
-              playerName={playerName}
               playerFaceUrl={playerFaceUrl}
-              playerFaceId={playerFaceId}
-              onFaceUploaded={handleFaceUploaded}
               onOpponentFaceUrl={setOpponentFaceUrl}
               onGameStart={handleOwnerRoomReady}
               onBack={() => navigate('/start')}
@@ -124,10 +120,7 @@ export default function AppFlow() {
           <Guard ok={userId} fallback="/start">
             <JoinRoom
               userId={userId}
-              playerName={playerName}
               playerFaceUrl={playerFaceUrl}
-              playerFaceId={playerFaceId}
-              onFaceUploaded={handleFaceUploaded}
               onOpponentFaceUrl={setOpponentFaceUrl}
               onJoined={handleGuestRoomReady}
               onBack={() => navigate('/start')}

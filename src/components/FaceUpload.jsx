@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { uploadFace } from '../api/client'
 
-export default function FaceUpload({ faceUrl, onFaceUploaded }) {
+export default function FaceUpload({ faceUrl, onFaceUploaded, readOnly = false, helperText }) {
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
   const streamRef = useRef(null)
@@ -27,6 +27,7 @@ export default function FaceUpload({ faceUrl, onFaceUploaded }) {
   }, [cameraOpen])
 
   async function openCamera() {
+    if (readOnly) return
     setError('')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -78,7 +79,7 @@ export default function FaceUpload({ faceUrl, onFaceUploaded }) {
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Camera viewfinder */}
-      {cameraOpen && (
+      {!readOnly && cameraOpen && (
         <div className="relative w-40 h-40 rounded-full overflow-hidden border-2 border-white/50 shadow-[0_0_20px_rgba(255,255,255,0.15)]">
           <video
             ref={videoRef}
@@ -97,12 +98,17 @@ export default function FaceUpload({ faceUrl, onFaceUploaded }) {
       )}
 
       {/* Preview / open camera trigger */}
-      {!cameraOpen && (
+      {(readOnly || !cameraOpen) && (
         <button
           type="button"
-          onClick={openCamera}
-          disabled={loading}
-          className="relative w-24 h-24 rounded-full overflow-hidden border-2 border-white/30 hover:border-white/70 transition-colors duration-150 bg-white/10 flex items-center justify-center shrink-0"
+          onClick={readOnly ? undefined : openCamera}
+          disabled={loading || readOnly}
+          className={[
+            'relative w-24 h-24 rounded-full overflow-hidden border-2 bg-white/10 flex items-center justify-center shrink-0 transition-colors duration-150',
+            readOnly
+              ? 'border-white/20 cursor-default'
+              : 'border-white/30 hover:border-white/70',
+          ].join(' ')}
         >
           {faceUrl ? (
             <img src={faceUrl} alt="Your face" className="w-full h-full object-cover" />
@@ -117,7 +123,7 @@ export default function FaceUpload({ faceUrl, onFaceUploaded }) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z" />
             </svg>
           )}
-          {faceUrl && !loading && (
+          {faceUrl && !loading && !readOnly && (
             <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
               <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
@@ -128,7 +134,15 @@ export default function FaceUpload({ faceUrl, onFaceUploaded }) {
       )}
 
       <p className="text-xs text-gray-400 text-center">
-        {cameraOpen ? '버튼을 눌러 촬영' : faceUrl ? '탭해서 다시 찍기' : '얼굴을 촬영하세요'}
+        {helperText || (
+          readOnly
+            ? '프로필 사진은 시작 화면에서만 변경할 수 있습니다'
+            : cameraOpen
+              ? '버튼을 눌러 촬영'
+              : faceUrl
+                ? '탭해서 다시 찍기'
+                : '얼굴을 촬영하세요'
+        )}
       </p>
 
       {error && <p className="text-xs text-red-400 text-center">{error}</p>}

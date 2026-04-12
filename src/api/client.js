@@ -6,7 +6,10 @@ function authHeaders() {
 }
 
 async function get(path) {
-  const res = await fetch(`${API_BASE}${path}`, { headers: authHeaders() })
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: authHeaders(),
+    cache: 'no-store',
+  })
   if (!res.ok) {
     const e = await res.json().catch(() => ({}))
     throw new Error(e.detail || `Request failed: ${res.status}`)
@@ -22,6 +25,7 @@ export async function uploadFace(file) {
   const res = await fetch(`${API_BASE}/api/face`, {
     method: 'POST',
     headers: { 'X-API-Key': API_KEY },
+    cache: 'no-store',
     body: form,
   })
   if (!res.ok) throw new Error('Face processing failed')
