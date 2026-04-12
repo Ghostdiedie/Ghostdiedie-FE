@@ -4,7 +4,7 @@ import { getRoomStatus } from '../api/client'
 import backgroundImg from '../assets/background/background.webp'
 
 const COUNTDOWN_SEC = 5
-const CAL_DURATION_MS = 2600  // 75프레임 @ 30fps ≈ 2.5초 + 여유
+const CAL_DURATION_MS = 4200  // 120프레임 @ 30fps ≈ 4초 + 여유
 
 function StatusDot({ active, color = 'bg-green-400' }) {
   return <span className={`h-2.5 w-2.5 rounded-full ${active ? color : 'bg-white/20'}`} />
