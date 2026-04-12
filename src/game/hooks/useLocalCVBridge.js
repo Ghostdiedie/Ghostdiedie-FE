@@ -196,10 +196,18 @@ export function useLocalCVBridge(onAction, options = {}) {
     }
   }, [drawFrame, enabled, updateStatus])
 
+  const send = useCallback((msg) => {
+    const ws = socketRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(msg))
+    }
+  }, [])
+
   return {
     status,
     lastAction,
     stream,
     attachDisplayCanvasRef,
+    send,
   }
 }

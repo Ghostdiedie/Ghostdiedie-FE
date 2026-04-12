@@ -12,8 +12,17 @@ export default function CalibrationPage({ roomCode, userId, playerName, playerFa
   const [errorMsg, setErrorMsg] = useState('')
   const [remoteReady, setRemoteReady] = useState(false)
   const pollRef = useRef(null)
+  const recalibratedRef = useRef(false)
 
   useEffect(() => () => clearInterval(pollRef.current), [])
+
+  // 페이지 진입 후 CV 연결되면 재캘리브레이션 트리거 (최초 1회)
+  useEffect(() => {
+    if (cvBridge.status === 'ready' && !recalibratedRef.current) {
+      recalibratedRef.current = true
+      cvBridge.send({ type: 'recalibrate' })
+    }
+  }, [cvBridge.status])
 
   function startPolling() {
     clearInterval(pollRef.current)
