@@ -58,7 +58,7 @@ function FighterCard({ character, selected, faceUrl, onClick }) {
   )
 }
 
-export default function CharacterSelect({ roomCode, playerFaceUrl, onConfirm, onBothSelected, onBack }) {
+export default function CharacterSelect({ roomCode, playerFaceUrl, onConfirm, onBothSelected }) {
   const [selected, setSelected] = useState('blue')
   const [phase, setPhase] = useState('idle')
   const [errorMsg, setErrorMsg] = useState('')
@@ -113,17 +113,6 @@ export default function CharacterSelect({ roomCode, playerFaceUrl, onConfirm, on
         }}
       />
       <div className="absolute inset-0 bg-black/60" />
-
-      {/* Back button */}
-      <button
-        onClick={onBack}
-        className="absolute top-6 left-6 z-20 flex items-center gap-2 text-white/70 hover:text-white transition-colors duration-150 text-sm font-medium tracking-wide"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-        </svg>
-        Back
-      </button>
 
       {/* Title */}
       <div className="relative z-10 pt-8 pb-4 text-center">

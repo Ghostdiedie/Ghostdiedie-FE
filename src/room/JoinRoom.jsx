@@ -90,16 +90,6 @@ export default function JoinRoom({ userId, playerFaceUrl, onOpponentFaceUrl, onJ
     >
       <div className="absolute inset-0 bg-black/50" />
 
-      <button
-        onClick={handleBack}
-        className="absolute top-6 left-6 z-20 flex items-center gap-2 text-white/70 hover:text-white transition-colors duration-150 text-sm font-medium tracking-wide"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-        </svg>
-        Back
-      </button>
-
       <div className="relative z-10 flex items-center gap-12 px-8 max-w-[1040px] w-full">
         <div className="shrink-0 flex-1 flex justify-center">
           <img
@@ -158,9 +148,6 @@ export default function JoinRoom({ userId, playerFaceUrl, onOpponentFaceUrl, onJ
                 <Button onClick={handleJoin} disabled={code.length !== 8} className="w-full justify-center">
                   Join
                 </Button>
-                <Button onClick={handleBack} className="w-full justify-center">
-                  Back
-                </Button>
               </div>
             )}
           </>
@@ -181,12 +168,6 @@ export default function JoinRoom({ userId, playerFaceUrl, onOpponentFaceUrl, onJ
             <Button onClick={handleConfirm} className="w-full justify-center">
               Confirm
             </Button>
-            <button
-              onClick={handleBack}
-              className="text-sm text-white/40 hover:text-white/70 transition-colors duration-150"
-            >
-              ← Back
-            </button>
           </div>
         )}
 
@@ -218,7 +199,7 @@ export default function JoinRoom({ userId, playerFaceUrl, onOpponentFaceUrl, onJ
         {phase === 'error' && (
           <div className="flex flex-col items-center gap-4 py-6">
             <p className="text-sm text-red-400 text-center">{errorMsg}</p>
-            <Button onClick={handleBack} className="w-full justify-center">Back</Button>
+            <Button onClick={handleBack} className="w-full justify-center">Return to Lobby</Button>
           </div>
         )}
 

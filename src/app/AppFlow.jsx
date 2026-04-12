@@ -138,7 +138,6 @@ export default function AppFlow() {
               isOwner={isOwner}
               roomCode={roomCode}
               onArenaSelected={handleArenaSelected}
-              onBack={() => navigate(-1)}
             />
           </Guard>
         }
@@ -154,7 +153,6 @@ export default function AppFlow() {
               playerFaceUrl={playerFaceUrl}
               onConfirm={handleCharacterConfirmed}
               onBothSelected={handleBothCharactersSelected}
-              onBack={() => navigate('/start')}
             />
           </Guard>
         }

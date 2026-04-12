@@ -313,7 +313,7 @@ function GuestWaiting({ roomCode, onDone }) {
 }
 
 // ─── Main export ─────────────────────────────────────────────────────────────
-export default function ArenaSelect({ isOwner, roomCode, onArenaSelected, onBack }) {
+export default function ArenaSelect({ isOwner, roomCode, onArenaSelected }) {
   const [selected, setSelected] = useState('arena')
   const [confirming, setConfirming] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -339,17 +339,6 @@ export default function ArenaSelect({ isOwner, roomCode, onArenaSelected, onBack
         style={{ backgroundImage: `url(${backgroundImg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
       />
       <div className="absolute inset-0 bg-black/68" />
-
-      {/* Back button */}
-      {isOwner && (
-        <button onClick={onBack}
-          className="absolute top-6 left-6 z-20 flex items-center gap-2 text-white/60 hover:text-white transition-colors text-sm font-medium tracking-wide">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-          </svg>
-          Back
-        </button>
-      )}
 
       {/* Title */}
       <div className="relative z-10 pt-10 pb-4 text-center">
